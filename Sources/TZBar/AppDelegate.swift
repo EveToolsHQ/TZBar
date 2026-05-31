@@ -143,6 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var pinnedStatusItems: [String: NSStatusItem] = [:]
     private let menu = NSMenu()
     private var addPopover: AddLocationPopoverController?
+    private var editPopover: EditLocationPopoverController?
     private let minuteTimer = MinuteBoundaryTimer()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -190,8 +191,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let menuWidth = locationMenuWidth(for: locations, at: now)
 
         for location in locations {
-            let flag = flagEmoji(for: location.countryCode)
-            let name = shortDisplayName(location.displayName)
+            let flag = location.emojiText
+            let name = location.labelText
             let time = formattedTime(in: location.timeZoneIdentifier, at: now)
             let phase = dayPhase(in: location.timeZoneIdentifier, at: now)
             let item = NSMenuItem(title: "\(flag)  \(name)  \(time)", action: nil, keyEquivalent: "")
@@ -207,6 +208,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             pinItem.representedObject = LocationMenuTag(location: location)
             pinItem.state = LocationStore.shared.isPinned(location) ? .on : .off
             locationMenu.addItem(pinItem)
+
+            let editItem = NSMenuItem(
+                title: "Edit…",
+                action: #selector(showEditPopover(_:)),
+                keyEquivalent: ""
+            )
+            editItem.target = self
+            editItem.representedObject = LocationMenuTag(location: location)
+            locationMenu.addItem(editItem)
 
             locationMenu.addItem(.separator())
 
@@ -273,7 +283,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         var width: CGFloat = 200
 
         for location in locations {
-            let name = "\(flagEmoji(for: location.countryCode))  \(shortDisplayName(location.displayName))"
+            let name = "\(location.emojiText)  \(location.labelText)"
             let time = formattedTime(in: location.timeZoneIdentifier, at: date)
             let nameWidth = (name as NSString).size(withAttributes: [.font: nameFont]).width
             let timeWidth = (time as NSString).size(withAttributes: [.font: timeFont]).width
@@ -319,6 +329,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         LocationStore.shared.remove(tag.location)
         syncStatusBar()
         rebuildMenu()
+    }
+
+    @objc private func showEditPopover(_ sender: NSMenuItem) {
+        guard let tag = sender.representedObject as? LocationMenuTag,
+              let button = menuAnchorButton
+        else { return }
+        editPopover = EditLocationPopoverController(location: tag.location) { [weak self] in
+            self?.syncStatusBar()
+            self?.rebuildMenu()
+        }
+        DispatchQueue.main.async { [weak self] in
+            self?.editPopover?.show(relativeTo: button.bounds, of: button)
+        }
     }
 
     @objc private func showAddPopover() {
@@ -407,9 +430,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func applyPinnedAppearance(to item: NSStatusItem, location: SavedLocation, at date: Date) {
         guard let button = item.button else { return }
-        let flag = flagEmoji(for: location.countryCode)
+        let flag = location.emojiText
         let time = formattedTime(in: location.timeZoneIdentifier, at: date)
-        let name = shortDisplayName(location.displayName)
+        let name = location.labelText
         button.image = nil
         button.title = "\(flag) \(time)"
         button.font = NSFont.monospacedDigitSystemFont(

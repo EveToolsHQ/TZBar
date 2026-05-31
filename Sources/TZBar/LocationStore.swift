@@ -4,9 +4,23 @@ struct SavedLocation: Codable, Equatable {
     var displayName: String
     var timeZoneIdentifier: String
     var countryCode: String?
+    var customEmoji: String?
+    var customName: String?
 
     var pinKey: String {
         "\(timeZoneIdentifier)|\(displayName)"
+    }
+
+    var labelText: String {
+        let trimmed = customName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !trimmed.isEmpty { return trimmed }
+        return shortDisplayName(displayName)
+    }
+
+    var emojiText: String {
+        let trimmed = customEmoji?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !trimmed.isEmpty { return trimmed }
+        return flagEmoji(for: countryCode)
     }
 }
 
@@ -38,6 +52,18 @@ final class LocationStore {
         save()
     }
 
+    func setCustomEmoji(_ emoji: String?, for location: SavedLocation) {
+        guard let index = locations.firstIndex(where: { $0.pinKey == location.pinKey }) else { return }
+        locations[index].customEmoji = emoji
+        save()
+    }
+
+    func setCustomName(_ name: String?, for location: SavedLocation) {
+        guard let index = locations.firstIndex(where: { $0.pinKey == location.pinKey }) else { return }
+        locations[index].customName = name
+        save()
+    }
+
     func isPinned(_ location: SavedLocation) -> Bool {
         pinnedKeys.contains(location.pinKey)
     }
@@ -61,7 +87,7 @@ final class LocationStore {
             let left = TimeZone(identifier: lhs.timeZoneIdentifier)?.secondsFromGMT(for: now) ?? 0
             let right = TimeZone(identifier: rhs.timeZoneIdentifier)?.secondsFromGMT(for: now) ?? 0
             if left != right { return left < right }
-            return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+            return lhs.labelText.localizedCaseInsensitiveCompare(rhs.labelText) == .orderedAscending
         }
     }
 
