@@ -4,17 +4,36 @@ import MapKit
 final class AddLocationPopoverController: NSObject, NSPopoverDelegate {
     private let popover = NSPopover()
     private let viewController = AddLocationViewController()
+    private var resignActiveObserver: NSObjectProtocol?
 
     init(onAdded: @escaping () -> Void) {
         super.init()
         popover.contentViewController = viewController
-        popover.behavior = .semitransient
+        popover.behavior = .transient
         popover.animates = true
         popover.delegate = self
         viewController.onAdded = { [weak self] in
             onAdded()
             self?.popover.performClose(nil)
         }
+        resignActiveObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: NSApp,
+            queue: .main
+        ) { [weak self] _ in
+            self?.closeIfShown()
+        }
+    }
+
+    deinit {
+        if let resignActiveObserver {
+            NotificationCenter.default.removeObserver(resignActiveObserver)
+        }
+    }
+
+    private func closeIfShown() {
+        guard popover.isShown else { return }
+        popover.performClose(nil)
     }
 
     func toggle(relativeTo positioningRect: NSRect, of positioningView: NSView) {
