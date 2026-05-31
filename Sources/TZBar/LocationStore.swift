@@ -24,6 +24,22 @@ struct SavedLocation: Codable, Equatable {
     }
 }
 
+enum AppPreferences {
+    private static let showDayPhaseIconsKey = "showDayPhaseIcons"
+
+    static var showDayPhaseIcons: Bool {
+        get {
+            if UserDefaults.standard.object(forKey: showDayPhaseIconsKey) == nil {
+                return true
+            }
+            return UserDefaults.standard.bool(forKey: showDayPhaseIconsKey)
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: showDayPhaseIconsKey)
+        }
+    }
+}
+
 final class LocationStore {
     static let shared = LocationStore()
 
