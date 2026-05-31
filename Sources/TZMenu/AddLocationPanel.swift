@@ -267,13 +267,6 @@ extension AddLocationViewController: NSSearchFieldDelegate {
     func controlTextDidChange(_ obj: Notification) {
         let query = searchField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         searchController.search(query: query)
-        if query.isEmpty {
-            tableView.reloadData()
-            tableView.deselectAll(nil)
-            clearStatus()
-            updateResultsHeight()
-            updatePreferredContentSize()
-        }
     }
 
     func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {

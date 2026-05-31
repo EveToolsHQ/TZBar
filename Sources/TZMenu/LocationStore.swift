@@ -70,12 +70,22 @@ func shortDisplayName(_ displayName: String) -> String {
         .trimmingCharacters(in: .whitespacesAndNewlines) ?? displayName
 }
 
+private enum TimeFormatterCache {
+    private static let formatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
+
+    static func string(from date: Date, timeZone: TimeZone) -> String {
+        formatter.timeZone = timeZone
+        return formatter.string(from: date)
+    }
+}
+
 func formattedTime(in timeZoneIdentifier: String, at date: Date = Date()) -> String {
     guard let timeZone = TimeZone(identifier: timeZoneIdentifier) else { return "--:--" }
-    let formatter = DateFormatter()
-    formatter.timeZone = timeZone
-    formatter.dateFormat = "HH:mm"
-    return formatter.string(from: date)
+    return TimeFormatterCache.string(from: date, timeZone: timeZone)
 }
 
 enum DayPhase {

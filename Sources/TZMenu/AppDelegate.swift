@@ -158,7 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(item)
         }
 
-        if !LocationStore.shared.locations.isEmpty {
+        if !locations.isEmpty {
             menu.addItem(.separator())
         }
 
