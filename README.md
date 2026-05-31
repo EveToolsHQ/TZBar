@@ -6,6 +6,25 @@ A native macOS menu bar app for world clocks. Add time zones, name them, pin fav
 
 **[Download TZBar](https://evetools.app/en/tzbar)**
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="screenshots/default.png" alt="TZBar world clock menu">
+      <br><sub>All zones in one menu</sub>
+    </td>
+    <td align="center">
+      <img src="screenshots/pinned.png" alt="Clock pinned to the menu bar">
+      <br><sub>Favorite on the bar</sub>
+    </td>
+    <td align="center">
+      <img src="screenshots/slider.png" alt="Time scrubber">
+      <br><sub>Preview another time today</sub>
+    </td>
+  </tr>
+</table>
+
 ## Features
 
 - **Menu bar clocks:** Open the globe (or a pinned clock) to see all your zones in one menu
