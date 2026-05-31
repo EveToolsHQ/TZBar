@@ -100,6 +100,21 @@ private final class LocationMenuItemView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { nil }
 
+    func update(time: String, dayPhase: DayPhase) {
+        timeLabel.stringValue = time
+        if !dayPhaseView.isHidden,
+           let image = NSImage(
+               systemSymbolName: dayPhase.symbolName,
+               accessibilityDescription: dayPhase.accessibilityLabel
+           ) {
+            image.isTemplate = true
+            let pointSize = NSFont.menuFont(ofSize: 0).pointSize
+            let config = NSImage.SymbolConfiguration(pointSize: pointSize * 0.9, weight: .medium)
+            dayPhaseView.image = image.withSymbolConfiguration(config) ?? image
+        }
+        needsDisplay = true
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         if let menuItem = enclosingMenuItem, menuItem.isHighlighted {
             NSColor.selectedContentBackgroundColor.setFill()
@@ -113,6 +128,65 @@ private final class LocationMenuItemView: NSView {
             dayPhaseView.contentTintColor = .secondaryLabelColor
         }
         super.draw(dirtyRect)
+    }
+}
+
+private final class TimeScrubberMenuItemView: NSView {
+    private static let timeLabelWidth: CGFloat = 44
+
+    private let slider = NSSlider(value: 0, minValue: 0, maxValue: 1439, target: nil, action: nil)
+    private let timeLabel = NSTextField(labelWithString: "")
+    private let onScrub: (Int) -> Void
+    private let referenceTimeZone: TimeZone
+
+    init(width: CGFloat, minutes: Int, referenceTimeZone: TimeZone, onScrub: @escaping (Int) -> Void) {
+        self.onScrub = onScrub
+        self.referenceTimeZone = referenceTimeZone
+        super.init(frame: NSRect(x: 0, y: 0, width: width, height: 22))
+        autoresizingMask = [.width]
+
+        timeLabel.font = NSFont.monospacedDigitSystemFont(
+            ofSize: NSFont.menuFont(ofSize: 0).pointSize,
+            weight: .regular
+        )
+        timeLabel.textColor = .secondaryLabelColor
+        timeLabel.alignment = .right
+        timeLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        slider.isContinuous = true
+        slider.controlSize = .mini
+        slider.doubleValue = Double(minutes)
+        slider.translatesAutoresizingMaskIntoConstraints = false
+        slider.target = self
+        slider.action = #selector(sliderChanged)
+
+        addSubview(timeLabel)
+        addSubview(slider)
+
+        NSLayoutConstraint.activate([
+            timeLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 18),
+            timeLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
+            timeLabel.widthAnchor.constraint(equalToConstant: Self.timeLabelWidth),
+            slider.leadingAnchor.constraint(equalTo: timeLabel.trailingAnchor, constant: 8),
+            slider.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -18),
+            slider.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+
+        updateTimeLabel(minutes: minutes)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { nil }
+
+    @objc private func sliderChanged() {
+        let minutes = Int(slider.doubleValue.rounded())
+        updateTimeLabel(minutes: minutes)
+        onScrub(minutes)
+    }
+
+    private func updateTimeLabel(minutes: Int) {
+        let date = date(atMinutesSinceMidnight: minutes, in: referenceTimeZone)
+        timeLabel.stringValue = formattedTime(in: referenceTimeZone.identifier, at: date)
     }
 }
 
@@ -159,6 +233,11 @@ private final class SettingsMenuItemView: NSView {
     }
 }
 
+private struct LocationMenuEntry {
+    let location: SavedLocation
+    let view: LocationMenuItemView
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var globeStatusItem: NSStatusItem?
     private var pinnedStatusItems: [String: NSStatusItem] = [:]
@@ -166,6 +245,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var addPopover: AddLocationPopoverController?
     private var editPopover: EditLocationPopoverController?
     private let minuteTimer = MinuteBoundaryTimer()
+    private var scrubberActive = false
+    private var scrubMinutes: Int?
+    private var showScrubberOnNextOpen = false
+    private var locationMenuEntries: [LocationMenuEntry] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         menu.delegate = self
@@ -202,23 +285,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func menuWillOpen(_ menu: NSMenu) {
+        if showScrubberOnNextOpen {
+            showScrubberOnNextOpen = false
+            scrubberActive = true
+        } else if !scrubberActive {
+            scrubMinutes = nil
+            locationMenuEntries.removeAll()
+        }
         rebuildMenu()
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        if showScrubberOnNextOpen { return }
+        scrubberActive = false
+        scrubMinutes = nil
+        locationMenuEntries.removeAll()
     }
 
     private func rebuildMenu() {
         menu.removeAllItems()
-        let now = Date()
+        locationMenuEntries.removeAll()
+        let displayDate = menuDisplayDate()
         let locations = LocationStore.shared.sortedByOffset()
-        let menuWidth = locationMenuWidth(for: locations, at: now)
+        let menuWidth = max(locationMenuWidth(for: locations, at: displayDate), scrubberActive ? 260 : 0)
 
         for location in locations {
             let flag = location.emojiText
             let name = location.labelText
-            let time = formattedTime(in: location.timeZoneIdentifier, at: now)
-            let phase = dayPhase(in: location.timeZoneIdentifier, at: now)
+            let time = formattedTime(in: location.timeZoneIdentifier, at: displayDate)
+            let phase = dayPhase(in: location.timeZoneIdentifier, at: displayDate)
             let showsDayPhase = AppPreferences.showDayPhaseIcons
             let item = NSMenuItem(title: "\(flag)  \(name)  \(time)", action: nil, keyEquivalent: "")
-            item.view = LocationMenuItemView(
+            let rowView = LocationMenuItemView(
                 flag: flag,
                 name: name,
                 time: time,
@@ -226,6 +324,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 showsDayPhase: showsDayPhase,
                 width: menuWidth
             )
+            item.view = rowView
+            if scrubberActive {
+                locationMenuEntries.append(LocationMenuEntry(location: location, view: rowView))
+            }
 
             let locationMenu = NSMenu()
             let pinItem = NSMenuItem(
@@ -269,6 +371,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(.separator())
         }
 
+        if scrubberActive {
+            let scrubberItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+            let minutes = scrubMinutes ?? minutesSinceMidnight(in: TimeZone.current)
+            scrubberItem.view = TimeScrubberMenuItemView(
+                width: menuWidth,
+                minutes: minutes,
+                referenceTimeZone: TimeZone.current,
+                onScrub: { [weak self] newMinutes in
+                    self?.scrubMinutes = newMinutes
+                    self?.updateScrubbedLocationTimes()
+                }
+            )
+            menu.addItem(scrubberItem)
+        }
+
         let settingsItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
         settingsItem.view = SettingsMenuItemView(width: menuWidth)
 
@@ -285,6 +402,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         dayPhaseIconsItem.target = self
         dayPhaseIconsItem.state = AppPreferences.showDayPhaseIcons ? .on : .off
         settingsMenu.addItem(dayPhaseIconsItem)
+
+        if !locations.isEmpty {
+            let timeScrubberItem = NSMenuItem(
+                title: "Time Scrubber",
+                action: #selector(enableTimeScrubber(_:)),
+                keyEquivalent: ""
+            )
+            timeScrubberItem.target = self
+            settingsMenu.addItem(timeScrubberItem)
+        }
 
         let launchAtLoginItem = NSMenuItem(
             title: "Launch at Login",
@@ -313,6 +440,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let item = NSMenuItem(title: "Add…", action: #selector(showAddPopover), keyEquivalent: "")
         item.target = self
         return item
+    }
+
+    private func menuDisplayDate() -> Date {
+        guard scrubberActive, let minutes = scrubMinutes else { return Date() }
+        return date(atMinutesSinceMidnight: minutes, in: TimeZone.current)
+    }
+
+    private func updateScrubbedLocationTimes() {
+        let displayDate = menuDisplayDate()
+        for entry in locationMenuEntries {
+            let time = formattedTime(in: entry.location.timeZoneIdentifier, at: displayDate)
+            let phase = dayPhase(in: entry.location.timeZoneIdentifier, at: displayDate)
+            entry.view.update(time: time, dayPhase: phase)
+        }
+    }
+
+    @objc private func enableTimeScrubber(_ sender: NSMenuItem) {
+        scrubMinutes = minutesSinceMidnight(in: TimeZone.current)
+        showScrubberOnNextOpen = true
+        // Let settings click close menu, then reopen via same path as normal click.
+        DispatchQueue.main.async { [weak self] in
+            DispatchQueue.main.async { [weak self] in
+                guard let self, let button = self.menuAnchorButton else {
+                    self?.showScrubberOnNextOpen = false
+                    return
+                }
+                button.performClick(nil)
+            }
+        }
     }
 
     private func locationMenuWidth(for locations: [SavedLocation], at date: Date) -> CGFloat {

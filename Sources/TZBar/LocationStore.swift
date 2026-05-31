@@ -177,6 +177,21 @@ func formattedTime(in timeZoneIdentifier: String, at date: Date = Date()) -> Str
     return TimeFormatterCache.string(from: date, timeZone: timeZone)
 }
 
+func minutesSinceMidnight(in timeZone: TimeZone, at date: Date = Date()) -> Int {
+    var calendar = Calendar.current
+    calendar.timeZone = timeZone
+    let hour = calendar.component(.hour, from: date)
+    let minute = calendar.component(.minute, from: date)
+    return hour * 60 + minute
+}
+
+func date(atMinutesSinceMidnight minutes: Int, in timeZone: TimeZone, onDayContaining date: Date = Date()) -> Date {
+    var calendar = Calendar.current
+    calendar.timeZone = timeZone
+    let startOfDay = calendar.startOfDay(for: date)
+    return calendar.date(byAdding: .minute, value: minutes, to: startOfDay) ?? date
+}
+
 enum DayPhase {
     case night
     case morning
