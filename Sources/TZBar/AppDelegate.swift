@@ -653,7 +653,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         globeStatusItem = item
         if let button = item.button {
-            if let image = NSImage(systemSymbolName: "globe", accessibilityDescription: "World Clock") {
+            if let image = NSImage(systemSymbolName: "globe", accessibilityDescription: "TZBar") {
                 image.isTemplate = true
                 image.size = NSSize(width: 18, height: 18)
                 button.image = image
@@ -662,7 +662,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 button.image = nil
                 button.title = "🌐"
             }
-            button.toolTip = "World Clock"
         }
         item.menu = menu
     }
