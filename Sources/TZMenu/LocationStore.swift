@@ -24,6 +24,13 @@ final class LocationStore {
         save()
     }
 
+    func remove(_ location: SavedLocation) {
+        let before = locations.count
+        locations.removeAll { $0 == location }
+        guard locations.count != before else { return }
+        save()
+    }
+
     func sortedByOffset() -> [SavedLocation] {
         let now = Date()
         return locations.sorted { lhs, rhs in

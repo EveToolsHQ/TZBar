@@ -1,10 +1,18 @@
 import AppKit
 import ServiceManagement
 
+private final class LocationMenuTag: NSObject {
+    let location: SavedLocation
+
+    init(location: SavedLocation) {
+        self.location = location
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let menu = NSMenu()
-    private var addPanel: AddLocationPanelController?
+    private var addPopover: AddLocationPopoverController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -46,10 +54,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let time = formattedTime(in: location.timeZoneIdentifier, at: now)
             let item = NSMenuItem(
                 title: "\(flag)  \(location.displayName)  \(time)",
-                action: #selector(locationItemSelected(_:)),
+                action: nil,
                 keyEquivalent: ""
             )
-            item.target = self
+
+            let locationMenu = NSMenu()
+            let deleteItem = NSMenuItem(
+                title: "Delete",
+                action: #selector(deleteLocation(_:)),
+                keyEquivalent: ""
+            )
+            deleteItem.target = self
+            deleteItem.representedObject = LocationMenuTag(location: location)
+            locationMenu.addItem(deleteItem)
+            item.submenu = locationMenu
+
             menu.addItem(item)
         }
 
@@ -57,11 +76,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(.separator())
         }
 
-        let addItem = NSMenuItem(title: "Add…", action: #selector(showAddPanel), keyEquivalent: "")
+        let addItem = NSMenuItem(title: "Add…", action: #selector(showAddPopover), keyEquivalent: "")
         addItem.target = self
         menu.addItem(addItem)
 
         menu.addItem(.separator())
+
+        let settingsItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        settingsItem.toolTip = "Settings"
+        if let gear = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings") {
+            gear.isTemplate = true
+            settingsItem.image = gear
+        }
+
+        let settingsMenu = NSMenu()
 
         let launchAtLoginItem = NSMenuItem(
             title: "Launch at Login",
@@ -70,9 +98,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         )
         launchAtLoginItem.target = self
         launchAtLoginItem.state = launchAtLoginEnabled ? .on : .off
-        menu.addItem(launchAtLoginItem)
+        settingsMenu.addItem(launchAtLoginItem)
 
-        menu.addItem(.separator())
+        settingsMenu.addItem(.separator())
 
         let quitItem = NSMenuItem(
             title: "Quit",
@@ -80,7 +108,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             keyEquivalent: "q"
         )
         quitItem.target = NSApp
-        menu.addItem(quitItem)
+        settingsMenu.addItem(quitItem)
+
+        settingsItem.submenu = settingsMenu
+        menu.addItem(settingsItem)
     }
 
     private var launchAtLoginEnabled: Bool {
@@ -104,15 +135,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    @objc private func locationItemSelected(_ sender: NSMenuItem) {}
+    @objc private func deleteLocation(_ sender: NSMenuItem) {
+        guard let tag = sender.representedObject as? LocationMenuTag else { return }
+        LocationStore.shared.remove(tag.location)
+        rebuildMenu()
+    }
 
-    @objc private func showAddPanel() {
-        if addPanel == nil {
-            addPanel = AddLocationPanelController { [weak self] in
+    @objc private func showAddPopover() {
+        guard statusItem.button != nil else { return }
+        if addPopover == nil {
+            addPopover = AddLocationPopoverController { [weak self] in
                 self?.rebuildMenu()
             }
         }
-        addPanel?.showPanel()
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let button = self.statusItem.button else { return }
+            self.addPopover?.toggle(relativeTo: button.bounds, of: button)
+        }
     }
-
 }

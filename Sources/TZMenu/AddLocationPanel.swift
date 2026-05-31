@@ -1,162 +1,408 @@
 import AppKit
 import MapKit
 
-final class AddLocationPanelController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, MKLocalSearchCompleterDelegate, NSSearchFieldDelegate {
-    private let completer = MKLocalSearchCompleter()
-    private var completions: [MKLocalSearchCompletion] = []
-    private var onAdded: (() -> Void)?
+final class AddLocationPopoverController: NSObject, NSPopoverDelegate {
+    private let popover = NSPopover()
+    private let viewController = AddLocationViewController()
 
-    private let searchField = NSSearchField()
-    private let tableView = NSTableView()
-    private let scrollView = NSScrollView()
-    private let statusLabel = NSTextField(labelWithString: "Search for a place…")
-
-    convenience init(onAdded: @escaping () -> Void) {
-        let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 320),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false
-        )
-        panel.title = "Add Location"
-        panel.isFloatingPanel = true
-        panel.hidesOnDeactivate = false
-
-        self.init(window: panel)
-        self.onAdded = onAdded
-        completer.delegate = self
-        completer.resultTypes = [.address, .pointOfInterest]
-        setupUI()
+    init(onAdded: @escaping () -> Void) {
+        super.init()
+        popover.contentViewController = viewController
+        popover.behavior = .semitransient
+        popover.animates = true
+        popover.delegate = self
+        viewController.onAdded = { [weak self] in
+            onAdded()
+            self?.popover.performClose(nil)
+        }
     }
 
-    private func setupUI() {
-        guard let contentView = window?.contentView else { return }
+    func toggle(relativeTo positioningRect: NSRect, of positioningView: NSView) {
+        if popover.isShown {
+            popover.performClose(nil)
+            return
+        }
+        viewController.prepareForDisplay()
+        popover.show(relativeTo: positioningRect, of: positioningView, preferredEdge: .minY)
+        NSApp.activate(ignoringOtherApps: true)
+    }
 
-        searchField.placeholderString = "Bali, Dubai, Montreal…"
+    func popoverDidClose(_ notification: Notification) {
+        viewController.prepareForDisplay()
+    }
+}
+
+final class AddLocationViewController: NSViewController {
+    private enum Layout {
+        static let width: CGFloat = 280
+        static let padding: CGFloat = 12
+        static let spacing: CGFloat = 8
+        static let emptyMinHeight: CGFloat = 56
+        static let maxVisibleRows = 8
+        static let rowHeight: CGFloat = 22
+    }
+
+    var onAdded: (() -> Void)?
+
+    private let searchController = PlaceSearchController()
+    private let searchField = NSSearchField()
+    private let scrollView = NSScrollView()
+    private let tableView = NSTableView()
+    private let statusLabel = NSTextField(labelWithString: "")
+    private let bodyStack = NSStackView()
+    private var resultsHeightConstraint: NSLayoutConstraint!
+
+    init() {
+        super.init(nibName: nil, bundle: nil)
+        searchController.onResultsChanged = { [weak self] in
+            self?.resultsDidChange()
+        }
+        searchController.onError = { [weak self] message in
+            self?.showStatus(message)
+        }
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func loadView() {
+        view = NSView(frame: NSRect(x: 0, y: 0, width: Layout.width, height: Layout.emptyMinHeight))
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        searchField.placeholderString = "Search for a city or country"
+        searchField.sendsSearchStringImmediately = true
+        searchField.focusRingType = .default
         searchField.delegate = self
-        searchField.translatesAutoresizingMaskIntoConstraints = false
-        searchField.focusRingType = .none
 
         statusLabel.font = .systemFont(ofSize: 11)
         statusLabel.textColor = .secondaryLabelColor
-        statusLabel.translatesAutoresizingMaskIntoConstraints = false
+        statusLabel.lineBreakMode = .byWordWrapping
+        statusLabel.maximumNumberOfLines = 2
+        statusLabel.setContentHuggingPriority(.required, for: .vertical)
 
+        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("place"))
+        column.minWidth = Layout.width - Layout.padding * 2
+        column.maxWidth = 10_000
+        column.resizingMask = .autoresizingMask
+
+        tableView.addTableColumn(column)
         tableView.headerView = nil
+        tableView.style = .plain
+        tableView.rowHeight = Layout.rowHeight
+        tableView.intercellSpacing = NSSize(width: 0, height: 0)
+        tableView.backgroundColor = .clear
+        tableView.gridStyleMask = []
+        tableView.usesAlternatingRowBackgroundColors = false
+        tableView.allowsMultipleSelection = false
+        tableView.allowsEmptySelection = true
+        tableView.columnAutoresizingStyle = .firstColumnOnlyAutoresizingStyle
         tableView.dataSource = self
         tableView.delegate = self
         tableView.target = self
-        tableView.doubleAction = #selector(tableViewDoubleClicked)
-        tableView.addTableColumn(NSTableColumn(identifier: NSUserInterfaceItemIdentifier("place")))
-        tableView.rowHeight = 22
+        tableView.action = #selector(tableRowActivated)
+        tableView.doubleAction = #selector(tableRowActivated)
 
         scrollView.documentView = tableView
         scrollView.hasVerticalScroller = true
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.autohidesScrollers = true
+        scrollView.borderType = .noBorder
+        scrollView.drawsBackground = false
 
-        contentView.addSubview(searchField)
-        contentView.addSubview(statusLabel)
-        contentView.addSubview(scrollView)
+        resultsHeightConstraint = scrollView.heightAnchor.constraint(equalToConstant: 0)
 
+        bodyStack.orientation = .vertical
+        bodyStack.alignment = .width
+        bodyStack.spacing = Layout.spacing
+        bodyStack.translatesAutoresizingMaskIntoConstraints = false
+        bodyStack.addArrangedSubview(searchField)
+        bodyStack.addArrangedSubview(statusLabel)
+        bodyStack.addArrangedSubview(scrollView)
+        statusLabel.isHidden = true
+
+        view.addSubview(bodyStack)
         NSLayoutConstraint.activate([
-            searchField.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 16),
-            searchField.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
-            searchField.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
-
-            statusLabel.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 8),
-            statusLabel.leadingAnchor.constraint(equalTo: searchField.leadingAnchor),
-            statusLabel.trailingAnchor.constraint(equalTo: searchField.trailingAnchor),
-
-            scrollView.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 8),
-            scrollView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
-            scrollView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
-            scrollView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -16),
+            bodyStack.topAnchor.constraint(equalTo: view.topAnchor, constant: Layout.padding),
+            bodyStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: Layout.padding),
+            bodyStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Layout.padding),
+            bodyStack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -Layout.padding),
+            searchField.widthAnchor.constraint(equalTo: bodyStack.widthAnchor),
+            scrollView.widthAnchor.constraint(equalTo: bodyStack.widthAnchor),
+            resultsHeightConstraint,
         ])
+
+        updatePreferredContentSize()
     }
 
-    func showPanel() {
-        guard let window else { return }
-        window.center()
-        NSApp.activate(ignoringOtherApps: true)
-        showWindow(nil)
-        window.makeKeyAndOrderFront(nil)
-        window.makeFirstResponder(searchField)
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        view.window?.makeFirstResponder(searchField)
     }
 
-    func controlTextDidChange(_ obj: Notification) {
+    func prepareForDisplay() {
+        loadViewIfNeeded()
+        searchField.stringValue = ""
+        searchController.reset()
+        tableView.reloadData()
+        clearStatus()
+        updateResultsHeight()
+        updatePreferredContentSize()
+    }
+
+    private func resultsDidChange() {
+        tableView.reloadData()
+        if searchController.completions.isEmpty {
+            tableView.deselectAll(nil)
+        } else {
+            tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            tableView.scrollRowToVisible(0)
+        }
+        refreshStatusForResults()
+        updateResultsHeight()
+        updatePreferredContentSize()
+    }
+
+    private func refreshStatusForResults() {
         let query = searchField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        completer.queryFragment = query
-        if query.isEmpty {
-            completions = []
-            tableView.reloadData()
-            statusLabel.stringValue = "Search for a place…"
+        guard !query.isEmpty else {
+            clearStatus()
+            return
+        }
+        if searchController.completions.isEmpty {
+            showStatus("No results")
+        } else {
+            clearStatus()
         }
     }
 
-    func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
-        completions = completer.results
-        tableView.reloadData()
-        statusLabel.stringValue = completions.isEmpty ? "No results" : "Double-click to add"
+    private func clearStatus() {
+        statusLabel.stringValue = ""
+        statusLabel.isHidden = true
+        updatePreferredContentSize()
     }
 
-    func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
-        statusLabel.stringValue = error.localizedDescription
+    private func showStatus(_ text: String) {
+        statusLabel.stringValue = text
+        statusLabel.isHidden = false
+        updatePreferredContentSize()
     }
 
+    private func updateResultsHeight() {
+        let rows = searchController.completions.count
+        let visibleRows = min(rows, Layout.maxVisibleRows)
+        let tableHeight = rows == 0
+            ? 0
+            : CGFloat(visibleRows) * Layout.rowHeight + CGFloat(max(0, visibleRows - 1))
+        resultsHeightConstraint.constant = tableHeight
+        scrollView.isHidden = rows == 0
+    }
+
+    private func updatePreferredContentSize() {
+        view.layoutSubtreeIfNeeded()
+        let contentHeight = bodyStack.fittingSize.height + Layout.padding * 2
+        let height = scrollView.isHidden
+            ? max(contentHeight, Layout.emptyMinHeight)
+            : contentHeight
+        preferredContentSize = NSSize(width: Layout.width, height: height)
+    }
+
+    @objc private func tableRowActivated() {
+        let row = tableView.clickedRow >= 0 ? tableView.clickedRow : tableView.selectedRow
+        guard row >= 0, row < searchController.completions.count else { return }
+        resolveAndAdd(searchController.completions[row])
+    }
+
+    private func resolveAndAdd(_ completion: MKLocalSearchCompletion) {
+        Task { @MainActor in
+            do {
+                let saved = try await searchController.resolve(completion)
+                LocationStore.shared.add(saved)
+                onAdded?()
+            } catch {
+                showStatus(error.localizedDescription)
+            }
+        }
+    }
+
+    private func moveSelection(by delta: Int) {
+        let count = searchController.completions.count
+        guard count > 0 else { return }
+        let current = tableView.selectedRow < 0 ? 0 : tableView.selectedRow
+        let next = min(count - 1, max(0, current + delta))
+        tableView.selectRowIndexes(IndexSet(integer: next), byExtendingSelection: false)
+        tableView.scrollRowToVisible(next)
+    }
+
+    private func pickSelection() {
+        let row = tableView.selectedRow
+        guard row >= 0, row < searchController.completions.count else { return }
+        resolveAndAdd(searchController.completions[row])
+    }
+}
+
+extension AddLocationViewController: NSSearchFieldDelegate {
+    func controlTextDidChange(_ obj: Notification) {
+        let query = searchField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        searchController.search(query: query)
+        if query.isEmpty {
+            tableView.reloadData()
+            tableView.deselectAll(nil)
+            clearStatus()
+            updateResultsHeight()
+            updatePreferredContentSize()
+        }
+    }
+
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        switch commandSelector {
+        case #selector(NSResponder.moveDown(_:)):
+            moveSelection(by: 1)
+            return true
+        case #selector(NSResponder.moveUp(_:)):
+            moveSelection(by: -1)
+            return true
+        case #selector(NSResponder.insertNewline(_:)):
+            pickSelection()
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+extension AddLocationViewController: NSTableViewDataSource, NSTableViewDelegate {
     func numberOfRows(in tableView: NSTableView) -> Int {
-        completions.count
+        searchController.completions.count
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        let completion = completions[row]
-        let text = "\(completion.title)\(completion.subtitle.isEmpty ? "" : " — \(completion.subtitle)")"
-        let cell = NSTableCellView()
-        let label = NSTextField(labelWithString: text)
-        label.lineBreakMode = .byTruncatingTail
-        label.translatesAutoresizingMaskIntoConstraints = false
-        cell.addSubview(label)
-        NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 4),
-            label.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
-            label.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-        ])
+        let identifier = NSUserInterfaceItemIdentifier("PlaceResultCell")
+        let cell = tableView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView ?? {
+            let view = NSTableCellView()
+            view.identifier = identifier
+            let label = NSTextField(labelWithString: "")
+            label.font = .systemFont(ofSize: 13)
+            label.lineBreakMode = .byTruncatingTail
+            label.translatesAutoresizingMaskIntoConstraints = false
+            view.addSubview(label)
+            view.textField = label
+            NSLayoutConstraint.activate([
+                label.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 4),
+                label.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -4),
+                label.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            ])
+            return view
+        }()
+
+        let completion = searchController.completions[row]
+        cell.textField?.stringValue = PlaceSearchController.displayLabel(for: completion)
         return cell
     }
 
-    @objc private func tableViewDoubleClicked() {
-        let row = tableView.selectedRow
-        guard row >= 0, row < completions.count else { return }
-        addCompletion(completions[row])
+    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+        EmphasizedTableRowView()
+    }
+}
+
+/// Popovers are non-key; without emphasis, AppKit draws gray selection with wrong text contrast.
+private final class EmphasizedTableRowView: NSTableRowView {
+    override var isEmphasized: Bool {
+        get { true }
+        set {}
+    }
+}
+
+// MARK: - Search
+
+private final class PlaceSearchController: NSObject, MKLocalSearchCompleterDelegate {
+    private static let maxResults = 8
+    private static let addressFilter = MKAddressFilter(including: [
+        .country,
+        .administrativeArea,
+        .subAdministrativeArea,
+        .locality,
+    ])
+
+    private let completer = MKLocalSearchCompleter()
+
+    private(set) var completions: [MKLocalSearchCompletion] = []
+    var onResultsChanged: (() -> Void)?
+    var onError: ((String) -> Void)?
+
+    override init() {
+        super.init()
+        completer.delegate = self
+        completer.resultTypes = [.address]
+        completer.pointOfInterestFilter = .excludingAll
+        completer.addressFilter = Self.addressFilter
     }
 
-    private func addCompletion(_ completion: MKLocalSearchCompletion) {
-        statusLabel.stringValue = "Resolving…"
-        let displayName = completion.title + (completion.subtitle.isEmpty ? "" : ", \(completion.subtitle)")
+    func reset() {
+        completer.cancel()
+        completions = []
+    }
 
-        Task { @MainActor in
-            do {
-                let request = MKLocalSearch.Request(completion: completion)
-                let response = try await MKLocalSearch(request: request).start()
-                guard let item = response.mapItems.first,
-                      let timeZone = item.timeZone
-                else {
-                    statusLabel.stringValue = "Could not resolve timezone"
-                    return
-                }
-
-                let countryCode = countryCode(from: item)
-                LocationStore.shared.add(
-                    SavedLocation(
-                        displayName: displayName,
-                        timeZoneIdentifier: timeZone.identifier,
-                        countryCode: countryCode
-                    )
-                )
-                onAdded?()
-                close()
-            } catch {
-                statusLabel.stringValue = error.localizedDescription
-            }
+    func search(query: String) {
+        guard !query.isEmpty else {
+            reset()
+            onResultsChanged?()
+            return
         }
+        completer.queryFragment = query
+    }
+
+    func resolve(_ completion: MKLocalSearchCompletion) async throws -> SavedLocation {
+        let request = MKLocalSearch.Request(completion: completion)
+        request.addressFilter = Self.addressFilter
+        let response = try await MKLocalSearch(request: request).start()
+        guard let item = response.mapItems.first,
+              let timeZone = item.timeZone
+        else {
+            throw PlaceSearchError.unresolvedTimeZone
+        }
+        return SavedLocation(
+            displayName: geographicDisplayName(for: item, fallback: Self.displayLabel(for: completion)),
+            timeZoneIdentifier: timeZone.identifier,
+            countryCode: countryCode(from: item)
+        )
+    }
+
+    func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
+        completions = Array(completer.results.prefix(Self.maxResults))
+        onResultsChanged?()
+    }
+
+    func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
+        onError?(error.localizedDescription)
+    }
+
+    static func displayLabel(for completion: MKLocalSearchCompletion) -> String {
+        if completion.subtitle.isEmpty {
+            return completion.title
+        }
+        if completion.title.localizedCaseInsensitiveContains(completion.subtitle) {
+            return completion.title
+        }
+        return "\(completion.title), \(completion.subtitle)"
+    }
+
+    private func geographicDisplayName(for item: MKMapItem, fallback: String) -> String {
+        let placemark = item.placemark
+        var parts: [String] = []
+        if let locality = placemark.locality, !locality.isEmpty {
+            parts.append(locality)
+        }
+        if let area = placemark.administrativeArea, !area.isEmpty, !parts.contains(area) {
+            parts.append(area)
+        }
+        if let country = placemark.country, !country.isEmpty, !parts.contains(country) {
+            parts.append(country)
+        }
+        return parts.isEmpty ? fallback : parts.joined(separator: ", ")
     }
 
     private func countryCode(from item: MKMapItem) -> String? {
@@ -167,5 +413,16 @@ final class AddLocationPanelController: NSWindowController, NSTableViewDataSourc
             return code
         }
         return nil
+    }
+}
+
+private enum PlaceSearchError: LocalizedError {
+    case unresolvedTimeZone
+
+    var errorDescription: String? {
+        switch self {
+        case .unresolvedTimeZone:
+            return "Could not resolve timezone"
+        }
     }
 }
