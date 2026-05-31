@@ -9,11 +9,18 @@ private final class LocationMenuTag: NSObject {
     }
 }
 
+private enum LocationMenuMetrics {
+    static let dayPhaseSymbolSize: CGFloat = 13
+    static let dayPhaseTrailingInset: CGFloat = 20
+    static let timeToDayPhaseSpacing: CGFloat = 6
+}
+
 private final class LocationMenuItemView: NSView {
     private let nameLabel = NSTextField(labelWithString: "")
     private let timeLabel = NSTextField(labelWithString: "")
+    private let dayPhaseView = NSImageView()
 
-    init(flag: String, name: String, time: String, width: CGFloat) {
+    init(flag: String, name: String, time: String, dayPhase: DayPhase, width: CGFloat) {
         super.init(frame: NSRect(x: 0, y: 0, width: width, height: 22))
 
         nameLabel.stringValue = "\(flag)  \(name)"
@@ -29,14 +36,41 @@ private final class LocationMenuItemView: NSView {
         timeLabel.alignment = .right
         timeLabel.translatesAutoresizingMaskIntoConstraints = false
 
+        if let image = NSImage(
+            systemSymbolName: dayPhase.symbolName,
+            accessibilityDescription: dayPhase.accessibilityLabel
+        ) {
+            image.isTemplate = true
+            let pointSize = NSFont.menuFont(ofSize: 0).pointSize
+            let config = NSImage.SymbolConfiguration(
+                pointSize: pointSize * 0.9,
+                weight: .medium
+            )
+            dayPhaseView.image = image.withSymbolConfiguration(config) ?? image
+        }
+        dayPhaseView.imageScaling = .scaleProportionallyDown
+        dayPhaseView.translatesAutoresizingMaskIntoConstraints = false
+
         addSubview(nameLabel)
         addSubview(timeLabel)
+        addSubview(dayPhaseView)
 
+        let symbolSize = LocationMenuMetrics.dayPhaseSymbolSize
         NSLayoutConstraint.activate([
             nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 18),
             nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
             nameLabel.trailingAnchor.constraint(lessThanOrEqualTo: timeLabel.leadingAnchor, constant: -12),
-            timeLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -24),
+            dayPhaseView.trailingAnchor.constraint(
+                equalTo: trailingAnchor,
+                constant: -LocationMenuMetrics.dayPhaseTrailingInset
+            ),
+            dayPhaseView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            dayPhaseView.widthAnchor.constraint(equalToConstant: symbolSize),
+            dayPhaseView.heightAnchor.constraint(equalToConstant: symbolSize),
+            timeLabel.trailingAnchor.constraint(
+                equalTo: dayPhaseView.leadingAnchor,
+                constant: -LocationMenuMetrics.timeToDayPhaseSpacing
+            ),
             timeLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
     }
@@ -50,9 +84,11 @@ private final class LocationMenuItemView: NSView {
             dirtyRect.fill()
             nameLabel.textColor = .selectedMenuItemTextColor
             timeLabel.textColor = .selectedMenuItemTextColor
+            dayPhaseView.contentTintColor = .selectedMenuItemTextColor
         } else {
             nameLabel.textColor = .labelColor
             timeLabel.textColor = .secondaryLabelColor
+            dayPhaseView.contentTintColor = .secondaryLabelColor
         }
         super.draw(dirtyRect)
     }
@@ -104,8 +140,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let flag = flagEmoji(for: location.countryCode)
             let name = shortDisplayName(location.displayName)
             let time = formattedTime(in: location.timeZoneIdentifier, at: now)
+            let phase = dayPhase(in: location.timeZoneIdentifier, at: now)
             let item = NSMenuItem(title: "\(flag)  \(name)  \(time)", action: nil, keyEquivalent: "")
-            item.view = LocationMenuItemView(flag: flag, name: name, time: time, width: menuWidth)
+            item.view = LocationMenuItemView(flag: flag, name: name, time: time, dayPhase: phase, width: menuWidth)
 
             let locationMenu = NSMenu()
             let deleteItem = NSMenuItem(
@@ -172,7 +209,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let time = formattedTime(in: location.timeZoneIdentifier, at: date)
             let nameWidth = (name as NSString).size(withAttributes: [.font: nameFont]).width
             let timeWidth = (time as NSString).size(withAttributes: [.font: timeFont]).width
-            width = max(width, nameWidth + timeWidth + 54)
+            let dayPhaseWidth = LocationMenuMetrics.dayPhaseSymbolSize
+                + LocationMenuMetrics.timeToDayPhaseSpacing
+                + LocationMenuMetrics.dayPhaseTrailingInset
+            width = max(width, nameWidth + timeWidth + dayPhaseWidth + 34)
         }
 
         return ceil(width)

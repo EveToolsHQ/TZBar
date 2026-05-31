@@ -77,3 +77,41 @@ func formattedTime(in timeZoneIdentifier: String, at date: Date = Date()) -> Str
     formatter.dateFormat = "HH:mm"
     return formatter.string(from: date)
 }
+
+enum DayPhase {
+    case night
+    case morning
+    case day
+    case evening
+
+    var symbolName: String {
+        switch self {
+        case .night: "moon.stars.fill"
+        case .morning: "sunrise.fill"
+        case .day: "sun.max.fill"
+        case .evening: "sunset.fill"
+        }
+    }
+
+    var accessibilityLabel: String {
+        switch self {
+        case .night: "Night"
+        case .morning: "Morning"
+        case .day: "Daytime"
+        case .evening: "Evening"
+        }
+    }
+}
+
+func dayPhase(in timeZoneIdentifier: String, at date: Date = Date()) -> DayPhase {
+    guard let timeZone = TimeZone(identifier: timeZoneIdentifier) else { return .night }
+    var calendar = Calendar.current
+    calendar.timeZone = timeZone
+    let hour = calendar.component(.hour, from: date)
+    switch hour {
+    case 5 ..< 8: return .morning
+    case 8 ..< 17: return .day
+    case 17 ..< 22: return .evening
+    default: return .night
+    }
+}
