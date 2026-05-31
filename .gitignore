@@ -1,5 +1,6 @@
 .build/
 .icons/
-output/
+node_modules/
 TZBar.app/
+TZBar.dmg
 .DS_Store

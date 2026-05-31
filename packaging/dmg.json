@@ -1,0 +1,26 @@
+{
+  "title": "TZBar",
+  "icon": "AppIcon.icns",
+  "icon-size": 96,
+  "window": {
+    "size": {
+      "width": 540,
+      "height": 380
+    }
+  },
+  "format": "UDZO",
+  "contents": [
+    {
+      "x": 150,
+      "y": 185,
+      "type": "file",
+      "path": "../TZBar.app"
+    },
+    {
+      "x": 390,
+      "y": 185,
+      "type": "link",
+      "path": "/Applications"
+    }
+  ]
+}

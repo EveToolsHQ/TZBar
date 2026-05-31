@@ -1,0 +1,4 @@
+onlyBuiltDependencies:
+  - fs-xattr
+  - macos-alias
+  - sharp
