@@ -139,27 +139,29 @@ private final class SettingsMenuItemView: NSView {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
-    private var statusItem: NSStatusItem!
+    private var globeStatusItem: NSStatusItem?
+    private var pinnedStatusItems: [String: NSStatusItem] = [:]
     private let menu = NSMenu()
     private var addPopover: AddLocationPopoverController?
+    private let minuteTimer = MinuteBoundaryTimer()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        if let button = statusItem.button {
-            if let image = NSImage(systemSymbolName: "globe", accessibilityDescription: "World Clock") {
-                image.isTemplate = true
-                image.size = NSSize(width: 18, height: 18)
-                button.image = image
-                button.title = ""
-            } else {
-                button.title = "🌐"
-            }
-            button.toolTip = "World Clock"
-        }
-
         menu.delegate = self
-        statusItem.menu = menu
+        syncStatusBar()
         rebuildMenu()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleClockOrActivationChange),
+            name: NSNotification.Name.NSSystemClockDidChange,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleClockOrActivationChange),
+            name: NSApplication.didBecomeActiveNotification,
+            object: nil
+        )
 
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             guard event.modifierFlags.contains(.command),
@@ -167,6 +169,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             else { return event }
             NSApp.terminate(nil)
             return nil
+        }
+    }
+
+    @objc private func handleClockOrActivationChange() {
+        updatePinnedStatusItemTitles()
+        if !LocationStore.shared.pinnedLocations().isEmpty {
+            minuteTimer.reschedule()
         }
     }
 
@@ -189,6 +198,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             item.view = LocationMenuItemView(flag: flag, name: name, time: time, dayPhase: phase, width: menuWidth)
 
             let locationMenu = NSMenu()
+            let pinItem = NSMenuItem(
+                title: "Show in Menu Bar",
+                action: #selector(togglePinLocation(_:)),
+                keyEquivalent: ""
+            )
+            pinItem.target = self
+            pinItem.representedObject = LocationMenuTag(location: location)
+            pinItem.state = LocationStore.shared.isPinned(location) ? .on : .off
+            locationMenu.addItem(pinItem)
+
+            locationMenu.addItem(.separator())
+
             let deleteItem = NSMenuItem(
                 title: "Delete",
                 action: #selector(deleteLocation(_:)),
@@ -286,22 +307,148 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    @objc private func togglePinLocation(_ sender: NSMenuItem) {
+        guard let tag = sender.representedObject as? LocationMenuTag else { return }
+        LocationStore.shared.setPinned(tag.location, pinned: sender.state != .on)
+        syncStatusBar()
+        rebuildMenu()
+    }
+
     @objc private func deleteLocation(_ sender: NSMenuItem) {
         guard let tag = sender.representedObject as? LocationMenuTag else { return }
         LocationStore.shared.remove(tag.location)
+        syncStatusBar()
         rebuildMenu()
     }
 
     @objc private func showAddPopover() {
-        guard statusItem.button != nil else { return }
+        guard let button = menuAnchorButton else { return }
         if addPopover == nil {
             addPopover = AddLocationPopoverController { [weak self] in
+                self?.syncStatusBar()
                 self?.rebuildMenu()
             }
         }
         DispatchQueue.main.async { [weak self] in
-            guard let self, let button = self.statusItem.button else { return }
+            guard let self else { return }
             self.addPopover?.toggle(relativeTo: button.bounds, of: button)
         }
+    }
+
+    private var menuAnchorButton: NSStatusBarButton? {
+        if let button = globeStatusItem?.button { return button }
+        for location in LocationStore.shared.pinnedLocations() {
+            if let button = pinnedStatusItems[location.pinKey]?.button {
+                return button
+            }
+        }
+        return nil
+    }
+
+    private func syncStatusBar() {
+        let pinned = LocationStore.shared.pinnedLocations()
+        let now = Date()
+
+        if pinned.isEmpty {
+            minuteTimer.stop()
+            removePinnedStatusItems()
+            ensureGlobeStatusItem()
+        } else {
+            removeGlobeStatusItem()
+            let activeKeys = Set(pinned.map(\.pinKey))
+            for key in pinnedStatusItems.keys where !activeKeys.contains(key) {
+                if let item = pinnedStatusItems.removeValue(forKey: key) {
+                    NSStatusBar.system.removeStatusItem(item)
+                }
+            }
+            for location in pinned {
+                let key = location.pinKey
+                let item = pinnedStatusItems[key] ?? makePinnedStatusItem()
+                pinnedStatusItems[key] = item
+                applyPinnedAppearance(to: item, location: location, at: now)
+            }
+            refreshMinuteTimer()
+        }
+
+        attachMenuToAllStatusItems()
+    }
+
+    private func attachMenuToAllStatusItems() {
+        globeStatusItem?.menu = menu
+        for item in pinnedStatusItems.values {
+            item.menu = menu
+        }
+    }
+
+    private func refreshMinuteTimer() {
+        guard !LocationStore.shared.pinnedLocations().isEmpty else {
+            minuteTimer.stop()
+            return
+        }
+        updatePinnedStatusItemTitles()
+        minuteTimer.start { [weak self] in
+            self?.updatePinnedStatusItemTitles()
+        }
+    }
+
+    private func updatePinnedStatusItemTitles() {
+        let now = Date()
+        for location in LocationStore.shared.pinnedLocations() {
+            guard let item = pinnedStatusItems[location.pinKey] else { continue }
+            applyPinnedAppearance(to: item, location: location, at: now)
+        }
+    }
+
+    private func makePinnedStatusItem() -> NSStatusItem {
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        item.menu = menu
+        return item
+    }
+
+    private func applyPinnedAppearance(to item: NSStatusItem, location: SavedLocation, at date: Date) {
+        guard let button = item.button else { return }
+        let flag = flagEmoji(for: location.countryCode)
+        let time = formattedTime(in: location.timeZoneIdentifier, at: date)
+        let name = shortDisplayName(location.displayName)
+        button.image = nil
+        button.title = "\(flag) \(time)"
+        button.font = NSFont.monospacedDigitSystemFont(
+            ofSize: NSFont.systemFontSize,
+            weight: .regular
+        )
+        button.toolTip = name
+        button.setAccessibilityLabel("\(name), \(time)")
+    }
+
+    private func ensureGlobeStatusItem() {
+        if globeStatusItem != nil { return }
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        globeStatusItem = item
+        if let button = item.button {
+            if let image = NSImage(systemSymbolName: "globe", accessibilityDescription: "World Clock") {
+                image.isTemplate = true
+                image.size = NSSize(width: 18, height: 18)
+                button.image = image
+                button.title = ""
+            } else {
+                button.image = nil
+                button.title = "🌐"
+            }
+            button.toolTip = "World Clock"
+        }
+        item.menu = menu
+    }
+
+    private func removeGlobeStatusItem() {
+        guard let item = globeStatusItem else { return }
+        NSStatusBar.system.removeStatusItem(item)
+        globeStatusItem = nil
+    }
+
+    private func removePinnedStatusItems() {
+        for item in pinnedStatusItems.values {
+            NSStatusBar.system.removeStatusItem(item)
+        }
+        pinnedStatusItems.removeAll()
     }
 }

@@ -4,13 +4,19 @@ struct SavedLocation: Codable, Equatable {
     var displayName: String
     var timeZoneIdentifier: String
     var countryCode: String?
+
+    var pinKey: String {
+        "\(timeZoneIdentifier)|\(displayName)"
+    }
 }
 
 final class LocationStore {
     static let shared = LocationStore()
 
     private let defaultsKey = "savedLocations"
+    private let pinnedKeysDefaultsKey = "pinnedLocationKeys"
     private(set) var locations: [SavedLocation] = []
+    private var pinnedKeys: Set<String> = []
 
     private init() {
         load()
@@ -28,7 +34,25 @@ final class LocationStore {
         let before = locations.count
         locations.removeAll { $0 == location }
         guard locations.count != before else { return }
+        pinnedKeys.remove(location.pinKey)
         save()
+    }
+
+    func isPinned(_ location: SavedLocation) -> Bool {
+        pinnedKeys.contains(location.pinKey)
+    }
+
+    func setPinned(_ location: SavedLocation, pinned: Bool) {
+        if pinned {
+            pinnedKeys.insert(location.pinKey)
+        } else {
+            pinnedKeys.remove(location.pinKey)
+        }
+        savePinnedKeys()
+    }
+
+    func pinnedLocations() -> [SavedLocation] {
+        locations.filter { pinnedKeys.contains($0.pinKey) }
     }
 
     func sortedByOffset() -> [SavedLocation] {
@@ -46,14 +70,37 @@ final class LocationStore {
               let decoded = try? JSONDecoder().decode([SavedLocation].self, from: data)
         else {
             locations = []
+            loadPinnedKeys()
             return
         }
         locations = decoded
+        loadPinnedKeys()
     }
 
     private func save() {
         guard let data = try? JSONEncoder().encode(locations) else { return }
         UserDefaults.standard.set(data, forKey: defaultsKey)
+    }
+
+    private func loadPinnedKeys() {
+        guard let keys = UserDefaults.standard.array(forKey: pinnedKeysDefaultsKey) as? [String] else {
+            pinnedKeys = []
+            return
+        }
+        pinnedKeys = Set(keys)
+        pruneOrphanedPins()
+    }
+
+    private func savePinnedKeys() {
+        UserDefaults.standard.set(Array(pinnedKeys), forKey: pinnedKeysDefaultsKey)
+    }
+
+    private func pruneOrphanedPins() {
+        let valid = Set(locations.map(\.pinKey))
+        let pruned = pinnedKeys.intersection(valid)
+        guard pruned != pinnedKeys else { return }
+        pinnedKeys = pruned
+        savePinnedKeys()
     }
 }
 
