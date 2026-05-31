@@ -22,6 +22,7 @@ private final class LocationMenuItemView: NSView {
 
     init(flag: String, name: String, time: String, dayPhase: DayPhase, width: CGFloat) {
         super.init(frame: NSRect(x: 0, y: 0, width: width, height: 22))
+        autoresizingMask = [.width]
 
         nameLabel.stringValue = "\(flag)  \(name)"
         nameLabel.font = NSFont.menuFont(ofSize: 0)
@@ -94,6 +95,49 @@ private final class LocationMenuItemView: NSView {
     }
 }
 
+private final class SettingsMenuItemView: NSView {
+    private static let trailingInset: CGFloat = 6
+    private static let iconSize: CGFloat = 13
+
+    private let gearView = NSImageView()
+
+    init(width: CGFloat) {
+        super.init(frame: NSRect(x: 0, y: 0, width: width, height: 22))
+        autoresizingMask = [.width]
+
+        if let image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings") {
+            image.isTemplate = true
+            let pointSize = NSFont.menuFont(ofSize: 0).pointSize
+            let config = NSImage.SymbolConfiguration(pointSize: pointSize * 0.9, weight: .medium)
+            gearView.image = image.withSymbolConfiguration(config) ?? image
+        }
+        gearView.imageScaling = .scaleProportionallyDown
+        gearView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(gearView)
+
+        NSLayoutConstraint.activate([
+            gearView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Self.trailingInset),
+            gearView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            gearView.widthAnchor.constraint(equalToConstant: Self.iconSize),
+            gearView.heightAnchor.constraint(equalToConstant: Self.iconSize),
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { nil }
+
+    override func draw(_ dirtyRect: NSRect) {
+        if let menuItem = enclosingMenuItem, menuItem.isHighlighted {
+            NSColor.selectedContentBackgroundColor.setFill()
+            dirtyRect.fill()
+            gearView.contentTintColor = .selectedMenuItemTextColor
+        } else {
+            gearView.contentTintColor = .secondaryLabelColor
+        }
+        super.draw(dirtyRect)
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let menu = NSMenu()
@@ -158,23 +202,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(item)
         }
 
-        if !locations.isEmpty {
+        if locations.isEmpty {
+            menu.addItem(makeAddMenuItem())
+            menu.addItem(.separator())
+        } else {
             menu.addItem(.separator())
         }
 
-        let addItem = NSMenuItem(title: "Add…", action: #selector(showAddPopover), keyEquivalent: "")
-        addItem.target = self
-        menu.addItem(addItem)
-
-        menu.addItem(.separator())
-
-        let settingsItem = NSMenuItem(title: "Settings…", action: nil, keyEquivalent: "")
-        if let gear = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings") {
-            gear.isTemplate = true
-            settingsItem.image = gear
-        }
+        let settingsItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        settingsItem.view = SettingsMenuItemView(width: menuWidth)
 
         let settingsMenu = NSMenu()
+        if !locations.isEmpty {
+            settingsMenu.addItem(makeAddMenuItem())
+        }
 
         let launchAtLoginItem = NSMenuItem(
             title: "Launch at Login",
@@ -197,6 +238,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         settingsItem.submenu = settingsMenu
         menu.addItem(settingsItem)
+    }
+
+    private func makeAddMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "Add…", action: #selector(showAddPopover), keyEquivalent: "")
+        item.target = self
+        return item
     }
 
     private func locationMenuWidth(for locations: [SavedLocation], at date: Date) -> CGFloat {
