@@ -302,13 +302,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func openUpdatesPage(_ sender: NSMenuItem) {
         menu.cancelTracking()
-        guard let url = URL(string: "https://tzmenu.evetools.app") else { return }
+        guard let url = URL(string: "https://tzbar.evetools.app") else { return }
         NSWorkspace.shared.open(url)
     }
 
     @objc private func reportBug(_ sender: NSMenuItem) {
         menu.cancelTracking()
-        guard let url = URL(string: "https://github.com/EveToolsHQ/TZMenu/issues") else { return }
+        guard let url = URL(string: "https://github.com/EveToolsHQ/TZBar/issues") else { return }
         NSWorkspace.shared.open(url)
     }
 
