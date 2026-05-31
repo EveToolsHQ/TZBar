@@ -2,4 +2,4 @@
 
 Then cropped with <https://svgcrop.com/> to `web-cropped.svg`.
 
-Then used <https://icon.kitchen/> and took `icon-512-maskable.png` to `AppIcon.png`.
+Then used <https://icon.kitchen/> and took `web/icon-512-maskable.png` to `AppIcon.png` and `web/icon-512.png` to `AppIcon-squircle.png`.
