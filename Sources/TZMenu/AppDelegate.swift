@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
@@ -59,6 +60,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let addItem = NSMenuItem(title: "Add…", action: #selector(showAddPanel), keyEquivalent: "")
         addItem.target = self
         menu.addItem(addItem)
+
+        menu.addItem(.separator())
+
+        let launchAtLoginItem = NSMenuItem(
+            title: "Launch at Login",
+            action: #selector(toggleLaunchAtLogin(_:)),
+            keyEquivalent: ""
+        )
+        launchAtLoginItem.target = self
+        launchAtLoginItem.state = launchAtLoginEnabled ? .on : .off
+        menu.addItem(launchAtLoginItem)
+
+        menu.addItem(.separator())
+
+        let quitItem = NSMenuItem(
+            title: "Quit",
+            action: #selector(NSApplication.terminate(_:)),
+            keyEquivalent: "q"
+        )
+        quitItem.target = NSApp
+        menu.addItem(quitItem)
+    }
+
+    private var launchAtLoginEnabled: Bool {
+        SMAppService.mainApp.status == .enabled
+    }
+
+    @objc private func toggleLaunchAtLogin(_ sender: NSMenuItem) {
+        let enable = sender.state != .on
+        do {
+            if enable {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+            sender.state = launchAtLoginEnabled ? .on : .off
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "Could not update Launch at Login"
+            alert.informativeText = error.localizedDescription
+            alert.runModal()
+        }
     }
 
     @objc private func showAddPanel() {
