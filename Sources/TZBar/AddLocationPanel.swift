@@ -371,13 +371,14 @@ private final class PlaceSearchController: NSObject, MKLocalSearchCompleterDeleg
         let request = MKLocalSearch.Request(completion: completion)
         request.addressFilter = Self.addressFilter
         let response = try await MKLocalSearch(request: request).start()
+        let displayName = Self.displayLabel(for: completion)
         guard let item = response.mapItems.first,
               let timeZone = item.timeZone
         else {
             throw PlaceSearchError.unresolvedTimeZone
         }
         return SavedLocation(
-            displayName: geographicDisplayName(for: item, fallback: Self.displayLabel(for: completion)),
+            displayName: displayName,
             timeZoneIdentifier: timeZone.identifier,
             countryCode: countryCode(from: item)
         )
@@ -400,21 +401,6 @@ private final class PlaceSearchController: NSObject, MKLocalSearchCompleterDeleg
             return completion.title
         }
         return "\(completion.title), \(completion.subtitle)"
-    }
-
-    private func geographicDisplayName(for item: MKMapItem, fallback: String) -> String {
-        let placemark = item.placemark
-        var parts: [String] = []
-        if let locality = placemark.locality, !locality.isEmpty {
-            parts.append(locality)
-        }
-        if let area = placemark.administrativeArea, !area.isEmpty, !parts.contains(area) {
-            parts.append(area)
-        }
-        if let country = placemark.country, !country.isEmpty, !parts.contains(country) {
-            parts.append(country)
-        }
-        return parts.isEmpty ? fallback : parts.joined(separator: ", ")
     }
 
     private func countryCode(from item: MKMapItem) -> String? {
