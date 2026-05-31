@@ -237,70 +237,169 @@ final class MenuRowView: NSView {
 }
 
 final class TimeScrubberMenuItemView: NSView {
-    private static let timeLabelWidth: CGFloat = 44
+    private static let sliderToTimeGap: CGFloat = 8
 
-    private let slider = NSSlider(value: 0, minValue: 0, maxValue: 1439, target: nil, action: nil)
-    private let timeLabel = NSTextField(labelWithString: "")
-    private let onScrub: (Int) -> Void
-    private let referenceTimeZone: TimeZone
-
-    init(width: CGFloat, minutes: Int, referenceTimeZone: TimeZone, onScrub: @escaping (Int) -> Void) {
-        self.onScrub = onScrub
-        self.referenceTimeZone = referenceTimeZone
-        super.init(frame: NSRect(x: 0, y: 0, width: width, height: MenuMetrics.rowHeight))
-        autoresizingMask = [.width]
-
-        timeLabel.font = NSFont.monospacedDigitSystemFont(
+    private static var timeLabelWidth: CGFloat {
+        let font = NSFont.monospacedDigitSystemFont(
             ofSize: NSFont.menuFont(ofSize: 0).pointSize,
             weight: .regular
         )
+        return ceil(("88:88" as NSString).size(withAttributes: [.font: font]).width)
+    }
+
+    private let slider = NSSlider(value: 0, minValue: 0, maxValue: 1439, target: nil, action: nil)
+    private let timeLabel = NSTextField(labelWithString: "")
+    private let phaseImageView = NSImageView()
+    private let onScrub: (Int) -> Void
+    private let referenceTimeZone: TimeZone
+    private let showsDayPhase: Bool
+
+    init(
+        width: CGFloat,
+        minutes: Int,
+        referenceTimeZone: TimeZone,
+        dayPhase: DayPhase,
+        showsDayPhase: Bool,
+        onScrub: @escaping (Int) -> Void
+    ) {
+        self.onScrub = onScrub
+        self.referenceTimeZone = referenceTimeZone
+        self.showsDayPhase = showsDayPhase
+        super.init(frame: NSRect(x: 0, y: 0, width: width, height: MenuMetrics.rowHeight))
+        autoresizingMask = [.width]
+
+        let timeFont = NSFont.monospacedDigitSystemFont(
+            ofSize: NSFont.menuFont(ofSize: 0).pointSize,
+            weight: .regular
+        )
+        timeLabel.font = timeFont
         timeLabel.textColor = .secondaryLabelColor
         timeLabel.alignment = .right
         timeLabel.translatesAutoresizingMaskIntoConstraints = false
 
+        phaseImageView.translatesAutoresizingMaskIntoConstraints = false
+        phaseImageView.imageScaling = .scaleProportionallyUpOrDown
+        phaseImageView.isHidden = !showsDayPhase
+
         slider.isContinuous = true
-        slider.controlSize = .mini
+        slider.controlSize = .small
         slider.doubleValue = Double(minutes)
         slider.translatesAutoresizingMaskIntoConstraints = false
         slider.target = self
         slider.action = #selector(sliderChanged)
 
-        addSubview(timeLabel)
         addSubview(slider)
+        addSubview(timeLabel)
+        addSubview(phaseImageView)
+
+        let phaseWidth = showsDayPhase ? MenuMetrics.dayPhaseSymbolSize : 0
+        let phaseGap = showsDayPhase ? MenuMetrics.timeToDayPhaseGap : 0
 
         NSLayoutConstraint.activate([
-            timeLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: MenuMetrics.leadingInset),
+            slider.leadingAnchor.constraint(equalTo: leadingAnchor, constant: MenuMetrics.leadingInset),
+            slider.trailingAnchor.constraint(equalTo: timeLabel.leadingAnchor, constant: -Self.sliderToTimeGap),
+            slider.topAnchor.constraint(equalTo: topAnchor, constant: 1),
+            slider.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -1),
+            timeLabel.trailingAnchor.constraint(
+                equalTo: phaseImageView.leadingAnchor,
+                constant: -phaseGap
+            ),
             timeLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
             timeLabel.widthAnchor.constraint(equalToConstant: Self.timeLabelWidth),
-            slider.leadingAnchor.constraint(equalTo: timeLabel.trailingAnchor, constant: 8),
-            slider.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -MenuMetrics.trailingInset),
-            slider.centerYAnchor.constraint(equalTo: centerYAnchor),
+            phaseImageView.trailingAnchor.constraint(
+                equalTo: trailingAnchor,
+                constant: -MenuMetrics.trailingInset
+            ),
+            phaseImageView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            phaseImageView.widthAnchor.constraint(equalToConstant: phaseWidth),
+            phaseImageView.heightAnchor.constraint(equalToConstant: phaseWidth),
         ])
 
-        updateTimeLabel(minutes: minutes)
+        updateDisplay(minutes: minutes, dayPhase: dayPhase)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { nil }
 
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
     override func hitTest(_ point: NSPoint) -> NSView? {
-        guard bounds.contains(point) else { return nil }
-        for subview in subviews.reversed() {
-            let localPoint = convert(point, to: subview)
-            if let hit = subview.hitTest(localPoint) { return hit }
-        }
-        return nil
+        guard bounds.contains(point), scrubbingRect.contains(point) else { return nil }
+        return self
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard let window else { return }
+        scrub(with: event)
+        window.trackEvents(
+            matching: [.leftMouseDragged, .leftMouseUp],
+            timeout: .infinity,
+            mode: .eventTracking,
+            handler: { [weak self] event, stop in
+                guard let self, let event else {
+                    stop.pointee = true
+                    return
+                }
+                switch event.type {
+                case .leftMouseDragged:
+                    self.scrub(with: event)
+                case .leftMouseUp:
+                    stop.pointee = true
+                default:
+                    break
+                }
+            }
+        )
     }
 
     @objc private func sliderChanged() {
         let minutes = Int(slider.doubleValue.rounded())
-        updateTimeLabel(minutes: minutes)
+        let date = date(atMinutesSinceMidnight: minutes, in: referenceTimeZone)
+        let phase = dayPhase(in: referenceTimeZone.identifier, at: date)
+        updateDisplay(minutes: minutes, dayPhase: phase)
         onScrub(minutes)
     }
 
-    private func updateTimeLabel(minutes: Int) {
+    private func updateDisplay(minutes: Int, dayPhase: DayPhase) {
         let date = date(atMinutesSinceMidnight: minutes, in: referenceTimeZone)
         timeLabel.stringValue = formattedTime(in: referenceTimeZone.identifier, at: date)
+        guard showsDayPhase else { return }
+        let menuFont = NSFont.menuFont(ofSize: 0)
+        let config = NSImage.SymbolConfiguration(pointSize: menuFont.pointSize * 0.9, weight: .medium)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [.secondaryLabelColor]))
+        phaseImageView.image = NSImage(systemSymbolName: dayPhase.symbolName, accessibilityDescription: nil)?
+            .withSymbolConfiguration(config)
+        phaseImageView.contentTintColor = .secondaryLabelColor
+        phaseImageView.setAccessibilityLabel(dayPhase.accessibilityLabel)
+    }
+
+    private var scrubbingRect: NSRect {
+        let trackMinX = MenuMetrics.leadingInset
+        let trackMaxX = bounds.width - Self.trailingColumnWidth(showsDayPhase: showsDayPhase)
+        return NSRect(
+            x: trackMinX,
+            y: bounds.minY,
+            width: max(0, trackMaxX - trackMinX),
+            height: bounds.height
+        )
+    }
+
+    private static func trailingColumnWidth(showsDayPhase: Bool) -> CGFloat {
+        var width = MenuMetrics.trailingInset + timeLabelWidth
+        if showsDayPhase {
+            width += MenuMetrics.timeToDayPhaseGap + MenuMetrics.dayPhaseSymbolSize
+        }
+        return width
+    }
+
+    private func scrub(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        let rect = scrubbingRect
+        guard rect.width > 0 else { return }
+        let fraction = (point.x - rect.minX) / rect.width
+        let clamped = max(0, min(1, fraction))
+        slider.doubleValue = slider.minValue + clamped * (slider.maxValue - slider.minValue)
+        sliderChanged()
     }
 }
 

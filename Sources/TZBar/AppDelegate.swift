@@ -150,10 +150,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if scrubberActive {
             let scrubberItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
             let minutes = scrubMinutes ?? minutesSinceMidnight(in: TimeZone.current)
+            let referenceTimeZone = TimeZone.current
+            let scrubDate = date(atMinutesSinceMidnight: minutes, in: referenceTimeZone)
+            let showsDayPhase = AppPreferences.showDayPhaseIcons
             scrubberItem.view = TimeScrubberMenuItemView(
                 width: menuWidth,
                 minutes: minutes,
-                referenceTimeZone: TimeZone.current,
+                referenceTimeZone: referenceTimeZone,
+                dayPhase: dayPhase(in: referenceTimeZone.identifier, at: scrubDate),
+                showsDayPhase: showsDayPhase,
                 onScrub: { [weak self] newMinutes in
                     self?.scrubMinutes = newMinutes
                     self?.updateScrubbedLocationTimes()
