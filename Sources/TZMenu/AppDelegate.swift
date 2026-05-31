@@ -11,7 +11,7 @@ private final class LocationMenuTag: NSObject {
 
 private enum LocationMenuMetrics {
     static let dayPhaseSymbolSize: CGFloat = 13
-    static let dayPhaseTrailingInset: CGFloat = 20
+    static let dayPhaseTrailingInset: CGFloat = 6
     static let timeToDayPhaseSpacing: CGFloat = 6
 }
 
