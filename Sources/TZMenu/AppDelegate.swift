@@ -46,10 +46,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let time = formattedTime(in: location.timeZoneIdentifier, at: now)
             let item = NSMenuItem(
                 title: "\(flag)  \(location.displayName)  \(time)",
-                action: nil,
+                action: #selector(locationItemSelected(_:)),
                 keyEquivalent: ""
             )
-            item.isEnabled = false
+            item.target = self
             menu.addItem(item)
         }
 
@@ -103,6 +103,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             alert.runModal()
         }
     }
+
+    @objc private func locationItemSelected(_ sender: NSMenuItem) {}
 
     @objc private func showAddPanel() {
         if addPanel == nil {
