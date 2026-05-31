@@ -1,4 +1,4 @@
 .build/
-TZBar.app/Contents/Info.plist
-TZBar.app/Contents/MacOS/
+.icons/
+TZBar.app/
 .DS_Store
