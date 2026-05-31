@@ -11,7 +11,7 @@ private final class LocationMenuTag: NSObject {
 
 private enum LocationMenuMetrics {
     static let dayPhaseSymbolSize: CGFloat = 13
-    static let dayPhaseTrailingInset: CGFloat = 12
+    static let menuTrailingInset: CGFloat = 18
     static let timeToDayPhaseSpacing: CGFloat = 6
 }
 
@@ -76,7 +76,7 @@ private final class LocationMenuItemView: NSView {
             constraints += [
                 dayPhaseView.trailingAnchor.constraint(
                     equalTo: trailingAnchor,
-                    constant: -LocationMenuMetrics.dayPhaseTrailingInset
+                    constant: -LocationMenuMetrics.menuTrailingInset
                 ),
                 dayPhaseView.centerYAnchor.constraint(equalTo: centerYAnchor),
                 dayPhaseView.widthAnchor.constraint(equalToConstant: symbolSize),
@@ -90,7 +90,7 @@ private final class LocationMenuItemView: NSView {
             constraints.append(
                 timeLabel.trailingAnchor.constraint(
                     equalTo: trailingAnchor,
-                    constant: -LocationMenuMetrics.dayPhaseTrailingInset
+                    constant: -LocationMenuMetrics.menuTrailingInset
                 )
             )
         }
@@ -191,7 +191,6 @@ private final class TimeScrubberMenuItemView: NSView {
 }
 
 private final class SettingsMenuItemView: NSView {
-    private static let trailingInset: CGFloat = 6
     private static let iconSize: CGFloat = 13
 
     private let gearView = NSImageView()
@@ -211,7 +210,10 @@ private final class SettingsMenuItemView: NSView {
         addSubview(gearView)
 
         NSLayoutConstraint.activate([
-            gearView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Self.trailingInset),
+            gearView.trailingAnchor.constraint(
+                equalTo: trailingAnchor,
+                constant: -LocationMenuMetrics.menuTrailingInset
+            ),
             gearView.centerYAnchor.constraint(equalTo: centerYAnchor),
             gearView.widthAnchor.constraint(equalToConstant: Self.iconSize),
             gearView.heightAnchor.constraint(equalToConstant: Self.iconSize),
@@ -485,9 +487,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if AppPreferences.showDayPhaseIcons {
                 trailingWidth = LocationMenuMetrics.dayPhaseSymbolSize
                     + LocationMenuMetrics.timeToDayPhaseSpacing
-                    + LocationMenuMetrics.dayPhaseTrailingInset
+                    + LocationMenuMetrics.menuTrailingInset
             } else {
-                trailingWidth = LocationMenuMetrics.dayPhaseTrailingInset
+                trailingWidth = LocationMenuMetrics.menuTrailingInset
             }
             width = max(width, nameWidth + timeWidth + trailingWidth + 34)
         }
