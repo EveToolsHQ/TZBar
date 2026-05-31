@@ -65,6 +65,11 @@ func flagEmoji(for countryCode: String?) -> String {
     }.joined()
 }
 
+func shortDisplayName(_ displayName: String) -> String {
+    displayName.components(separatedBy: ",").first?
+        .trimmingCharacters(in: .whitespacesAndNewlines) ?? displayName
+}
+
 func formattedTime(in timeZoneIdentifier: String, at date: Date = Date()) -> String {
     guard let timeZone = TimeZone(identifier: timeZoneIdentifier) else { return "--:--" }
     let formatter = DateFormatter()

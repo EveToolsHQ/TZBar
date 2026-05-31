@@ -9,6 +9,55 @@ private final class LocationMenuTag: NSObject {
     }
 }
 
+private final class LocationMenuItemView: NSView {
+    private let nameLabel = NSTextField(labelWithString: "")
+    private let timeLabel = NSTextField(labelWithString: "")
+
+    init(flag: String, name: String, time: String, width: CGFloat) {
+        super.init(frame: NSRect(x: 0, y: 0, width: width, height: 22))
+
+        nameLabel.stringValue = "\(flag)  \(name)"
+        nameLabel.font = NSFont.menuFont(ofSize: 0)
+        nameLabel.lineBreakMode = .byTruncatingTail
+        nameLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        timeLabel.stringValue = time
+        timeLabel.font = NSFont.monospacedDigitSystemFont(
+            ofSize: NSFont.menuFont(ofSize: 0).pointSize,
+            weight: .regular
+        )
+        timeLabel.alignment = .right
+        timeLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        addSubview(nameLabel)
+        addSubview(timeLabel)
+
+        NSLayoutConstraint.activate([
+            nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 18),
+            nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
+            nameLabel.trailingAnchor.constraint(lessThanOrEqualTo: timeLabel.leadingAnchor, constant: -12),
+            timeLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -24),
+            timeLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { nil }
+
+    override func draw(_ dirtyRect: NSRect) {
+        if let menuItem = enclosingMenuItem, menuItem.isHighlighted {
+            NSColor.selectedContentBackgroundColor.setFill()
+            dirtyRect.fill()
+            nameLabel.textColor = .selectedMenuItemTextColor
+            timeLabel.textColor = .selectedMenuItemTextColor
+        } else {
+            nameLabel.textColor = .labelColor
+            timeLabel.textColor = .secondaryLabelColor
+        }
+        super.draw(dirtyRect)
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let menu = NSMenu()
@@ -48,15 +97,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func rebuildMenu() {
         menu.removeAllItems()
         let now = Date()
+        let locations = LocationStore.shared.sortedByOffset()
+        let menuWidth = locationMenuWidth(for: locations, at: now)
 
-        for location in LocationStore.shared.sortedByOffset() {
+        for location in locations {
             let flag = flagEmoji(for: location.countryCode)
+            let name = shortDisplayName(location.displayName)
             let time = formattedTime(in: location.timeZoneIdentifier, at: now)
-            let item = NSMenuItem(
-                title: "\(flag)  \(location.displayName)  \(time)",
-                action: nil,
-                keyEquivalent: ""
-            )
+            let item = NSMenuItem(title: "\(flag)  \(name)  \(time)", action: nil, keyEquivalent: "")
+            item.view = LocationMenuItemView(flag: flag, name: name, time: time, width: menuWidth)
 
             let locationMenu = NSMenu()
             let deleteItem = NSMenuItem(
@@ -112,6 +161,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         settingsItem.submenu = settingsMenu
         menu.addItem(settingsItem)
+    }
+
+    private func locationMenuWidth(for locations: [SavedLocation], at date: Date) -> CGFloat {
+        let nameFont = NSFont.menuFont(ofSize: 0)
+        let timeFont = NSFont.monospacedDigitSystemFont(ofSize: nameFont.pointSize, weight: .regular)
+        var width: CGFloat = 200
+
+        for location in locations {
+            let name = "\(flagEmoji(for: location.countryCode))  \(shortDisplayName(location.displayName))"
+            let time = formattedTime(in: location.timeZoneIdentifier, at: date)
+            let nameWidth = (name as NSString).size(withAttributes: [.font: nameFont]).width
+            let timeWidth = (time as NSString).size(withAttributes: [.font: timeFont]).width
+            width = max(width, nameWidth + timeWidth + 54)
+        }
+
+        return ceil(width)
     }
 
     private var launchAtLoginEnabled: Bool {
