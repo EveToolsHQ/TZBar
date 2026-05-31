@@ -131,8 +131,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        let settingsItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-        settingsItem.toolTip = "Settings"
+        let settingsItem = NSMenuItem(title: "Settings…", action: nil, keyEquivalent: "")
         if let gear = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings") {
             gear.isTemplate = true
             settingsItem.image = gear
