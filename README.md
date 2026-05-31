@@ -41,7 +41,7 @@ TZBar is a menu bar utility, not a background service.
 
 - **Icon-only mode:** no timers, no periodic work-idle CPU and memory stay negligible while the menu is closed
 - **Pinned mode:** clocks update on each local minute boundary only (`:00`), not on a fast poll loop
-- Native **AppKit**, no sync stack, no widgets, just clocks when you need them
+- Native **AppKit**, no sync stack, no widgets, no tracking, no dependencies, just clocks when you need them
 
 Requires **macOS 15** or later.
 
@@ -62,3 +62,8 @@ make build    # release TZBar.app bundle
 ## License
 
 This project uses the [PolyForm Noncommercial License 1.0.0](LICENSE). You may use and modify the software for noncommercial purposes.
+
+## Alternatives
+
+- **[There](https://there.pm/):** solid, MIT, claims low CPU usage yet [heavy power usage](https://github.com/dena-sohrabi/There/issues/14) on my machine (hence why I built my own)
+- **[Zone Bar](https://sindresorhus.com/zone-bar):** also solid, $4, closed source
