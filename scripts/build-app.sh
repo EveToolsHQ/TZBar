@@ -4,16 +4,16 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-echo "Building TZMenu (release)…"
+echo "Building TZBar (release)…"
 swift build -c release
 
-APP="$ROOT/TZMenu.app"
-BIN="$ROOT/.build/release/TZMenu"
+APP="$ROOT/TZBar.app"
+BIN="$ROOT/.build/release/TZBar"
 PLIST="$ROOT/packaging/Info.plist"
 
 mkdir -p "$APP/Contents/MacOS"
-cp "$BIN" "$APP/Contents/MacOS/TZMenu"
-chmod +x "$APP/Contents/MacOS/TZMenu"
+cp "$BIN" "$APP/Contents/MacOS/TZBar"
+chmod +x "$APP/Contents/MacOS/TZBar"
 cp "$PLIST" "$APP/Contents/Info.plist"
 
 echo "Built $APP"

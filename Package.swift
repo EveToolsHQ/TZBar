@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "TZMenu",
+    name: "TZBar",
     platforms: [.macOS(.v15)],
     targets: [
         .executableTarget(
-            name: "TZMenu",
-            path: "Sources/TZMenu",
+            name: "TZBar",
+            path: "Sources/TZBar",
             swiftSettings: [
                 .swiftLanguageMode(.v5),
             ],
