@@ -16,10 +16,31 @@ TZBar.app/Contents/Resources/AppIcon.icns: packaging/AppIcon.icns
 	mkdir -p $(@D)
 	cp $< $@
 
-dmg: build packaging/AppIcon.icns
+build-signed: build
+	codesign --force --timestamp --options runtime \
+		--entitlements packaging/entitlements.plist \
+		--sign "$(APPLE_CODESIGN_IDENTITY)" TZBar.app/Contents/MacOS/TZBar
+
+	codesign --force --timestamp --options runtime \
+		--entitlements packaging/entitlements.plist \
+		--sign "$(APPLE_CODESIGN_IDENTITY)" TZBar.app
+
+dmg: build
 	rm -rf TZBar.dmg
 	pnpm appdmg packaging/dmg.json TZBar.dmg
 	pnpm fileicon set TZBar.dmg packaging/AppIcon.icns
+
+dmg-signed: build-signed
+	rm -rf TZBar.dmg
+	pnpm appdmg packaging/dmg.json TZBar.dmg
+	pnpm fileicon set TZBar.dmg packaging/AppIcon.icns
+	codesign --force --timestamp --sign "$(APPLE_CODESIGN_IDENTITY)" TZBar.dmg
+
+release: dmg-signed
+	xcrun notarytool submit TZBar.dmg --wait \
+		--key "$(APPLE_API_KEY_PATH)" --key-id "$(APPLE_API_KEY)" --issuer "$(APPLE_API_ISSUER)"
+
+	xcrun stapler staple TZBar.dmg
 
 run:
 	swift run TZBar
