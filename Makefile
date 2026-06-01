@@ -15,7 +15,7 @@ run: build
 build-release: $(APP_RESOURCES)
 	swift build -c release --arch arm64 --arch x86_64
 	mkdir -p $(APP)/Contents/MacOS
-	cp .build/release/TZBar $(APP)/Contents/MacOS/TZBar
+	cp .build/apple/Products/Release/TZBar $(APP)/Contents/MacOS/TZBar
 
 $(APP)/Contents/Info.plist: packaging/Info.plist
 	mkdir -p $(@D)
