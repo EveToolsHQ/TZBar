@@ -23,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let minuteTimer = MinuteBoundaryTimer()
     private var scrubberActive = false
     private var scrubMinutes: Int?
+    private var showScrubberOnNextOpen = false
     private var locationMenuEntries: [LocationMenuEntry] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -61,7 +62,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func menuWillOpen(_ openingMenu: NSMenu) {
         guard openingMenu === menu else { return }
-        if !scrubberActive {
+        if showScrubberOnNextOpen {
+            showScrubberOnNextOpen = false
+            scrubberActive = true
+        } else if !scrubberActive {
             scrubMinutes = nil
             locationMenuEntries.removeAll()
         }
@@ -69,6 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func menuDidClose(_ menu: NSMenu) {
+        if showScrubberOnNextOpen { return }
         scrubberActive = false
         scrubMinutes = nil
         locationMenuEntries.removeAll()
@@ -82,7 +87,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let menuWidth = TZBarMenuLayout.preferredWidth(
             locations: locations,
             at: displayDate,
-            appVersion: appVersionString,
             scrubberActive: scrubberActive
         )
 
@@ -137,12 +141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         if locations.isEmpty {
-            menu.addItem(settingsRow(
-                title: "Add…",
-                menuWidth: menuWidth,
-                action: #selector(showAddPopover),
-                showsCheckmarkColumn: false
-            ))
+            menu.addItem(menuItem(title: "Add…", action: #selector(showAddPopover)))
             menu.addItem(.separator())
         } else {
             menu.addItem(.separator())
@@ -168,100 +167,76 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(scrubberItem)
         }
 
-        let settingsItem = TZBarMenuItemFactory.rowItem(
-            title: "Settings",
-            width: menuWidth,
-            content: .gear,
-            action: nil,
-            target: nil
-        )
+        let settingsItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        settingsItem.image = Self.settingsGearImage
+        settingsItem.submenu = buildSettingsMenu(locationsEmpty: locations.isEmpty)
+        menu.addItem(settingsItem)
+    }
 
+    private static let settingsGearImage: NSImage? = {
+        guard let image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")
+        else { return nil }
+        image.isTemplate = true
+        return image
+    }()
+
+    private func buildSettingsMenu(locationsEmpty: Bool) -> NSMenu {
         let settingsMenu = NSMenu()
-        if !locations.isEmpty {
-            settingsMenu.addItem(settingsRow(
-                title: "Add…",
-                menuWidth: menuWidth,
-                action: #selector(showAddPopover)
-            ))
+        if !locationsEmpty {
+            settingsMenu.addItem(menuItem(title: "Add…", action: #selector(showAddPopover)))
         }
 
-        settingsMenu.addItem(settingsRow(
+        settingsMenu.addItem(menuItem(
             title: "Phase Icons",
-            menuWidth: menuWidth,
             action: #selector(toggleDayPhaseIcons(_:)),
             state: AppPreferences.showDayPhaseIcons ? .on : .off
         ))
 
-        if !locations.isEmpty {
-            settingsMenu.addItem(settingsRow(
+        if !locationsEmpty {
+            settingsMenu.addItem(menuItem(
                 title: "Time Scrubber",
-                menuWidth: menuWidth,
                 action: #selector(toggleTimeScrubber(_:)),
                 state: scrubberActive ? .on : .off
             ))
         }
 
-        settingsMenu.addItem(settingsRow(
+        settingsMenu.addItem(menuItem(
             title: "Launch at Login",
-            menuWidth: menuWidth,
             action: #selector(toggleLaunchAtLogin(_:)),
             state: launchAtLoginEnabled ? .on : .off
         ))
 
         settingsMenu.addItem(.separator())
 
-        settingsMenu.addItem(settingsRow(
+        settingsMenu.addItem(menuItem(
             title: "Check for Updates…",
-            menuWidth: menuWidth,
-            action: #selector(openUpdatesPage(_:)),
-            trailing: appVersionString
+            action: #selector(openUpdatesPage(_:))
         ))
+        settingsMenu.addItem(menuItem(title: "Report Bug…", action: #selector(reportBug(_:))))
 
-        settingsMenu.addItem(settingsRow(
-            title: "Report Bug…",
-            menuWidth: menuWidth,
-            action: #selector(reportBug(_:))
-        ))
+        let versionItem = NSMenuItem(title: appVersionCaption, action: nil, keyEquivalent: "")
+        versionItem.isEnabled = false
+        settingsMenu.addItem(versionItem)
 
         settingsMenu.addItem(.separator())
-
-        let quitItem = settingsRow(
+        settingsMenu.addItem(menuItem(
             title: "Quit",
-            menuWidth: menuWidth,
             action: #selector(quitApp(_:)),
-            trailing: "⌘Q",
-            monospacedTrailing: true
-        )
-        quitItem.keyEquivalent = "q"
-        settingsMenu.addItem(quitItem)
-
-        settingsItem.submenu = settingsMenu
-        menu.addItem(settingsItem)
+            keyEquivalent: "q"
+        ))
+        return settingsMenu
     }
 
-    private func settingsRow(
+    private func menuItem(
         title: String,
-        menuWidth: CGFloat,
         action: Selector?,
-        target: AnyObject? = nil,
-        trailing: String? = nil,
-        monospacedTrailing: Bool = false,
         state: NSControl.StateValue = .off,
-        showsCheckmarkColumn: Bool = true
+        keyEquivalent: String = ""
     ) -> NSMenuItem {
-        TZBarMenuItemFactory.rowItem(
-            title: title,
-            width: menuWidth,
-            content: .action(
-                title: title,
-                trailing: trailing,
-                monospacedTrailing: monospacedTrailing,
-                showsCheckmarkColumn: showsCheckmarkColumn
-            ),
-            action: action,
-            target: target ?? self,
-            state: state
-        )
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: keyEquivalent)
+        item.target = self
+        item.state = state
+        return item
     }
 
     private func menuDisplayDate() -> Date {
@@ -279,13 +254,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func toggleTimeScrubber(_ sender: NSMenuItem) {
-        scrubberActive.toggle()
         if scrubberActive {
-            scrubMinutes = minutesSinceMidnight(in: TimeZone.current)
-        } else {
+            scrubberActive = false
             scrubMinutes = nil
+        } else {
+            scrubMinutes = minutesSinceMidnight(in: TimeZone.current)
+            showScrubberOnNextOpen = true
         }
-        rebuildMenu()
+        // Settings submenu can't refresh main menu; close all menus then reopen.
+        DispatchQueue.main.async { [weak self] in
+            DispatchQueue.main.async { [weak self] in
+                guard let self, let button = self.menuAnchorButton else {
+                    self?.showScrubberOnNextOpen = false
+                    return
+                }
+                button.performClick(nil)
+            }
+        }
     }
 
     private var launchAtLoginEnabled: Bool {
@@ -294,6 +279,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private var appVersionString: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+    }
+
+    private var appVersionCaption: String {
+        "TZBar v\(appVersionString)"
     }
 
     @objc private func quitApp(_ sender: NSMenuItem) {

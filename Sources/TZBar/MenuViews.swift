@@ -4,22 +4,13 @@ enum MenuMetrics {
     static let rowHeight: CGFloat = 22
     static let leadingInset: CGFloat = 18
     static let trailingInset: CGFloat = 18
-    static let checkmarkColumnWidth: CGFloat = 18
     static let checkmarkSymbolSize: CGFloat = 13
-    static let titleToTrailingGap: CGFloat = 12
     static let dayPhaseSymbolSize: CGFloat = 13
     static let timeToDayPhaseGap: CGFloat = 6
 }
 
 enum MenuRowContent {
     case location(flag: String, name: String, time: String, dayPhase: DayPhase, showsDayPhase: Bool)
-    case action(
-        title: String,
-        trailing: String?,
-        monospacedTrailing: Bool,
-        showsCheckmarkColumn: Bool
-    )
-    case gear
 }
 
 /// Drawn menu row. Custom `NSMenuItem.view` does not fire actions automatically — we forward clicks.
@@ -76,16 +67,6 @@ final class MenuRowView: NSView {
                 showsDayPhase: showsDayPhase,
                 highlighted: highlighted
             )
-        case let .action(title, trailing, monospacedTrailing, showsCheckmarkColumn):
-            drawAction(
-                title: title,
-                trailing: trailing,
-                monospacedTrailing: monospacedTrailing,
-                showsCheckmarkColumn: showsCheckmarkColumn,
-                highlighted: highlighted
-            )
-        case .gear:
-            drawGear(highlighted: highlighted)
         }
     }
 
@@ -117,62 +98,6 @@ final class MenuRowView: NSView {
             .applying(NSImage.SymbolConfiguration(paletteColors: [color]))
         guard let symbol = image.withSymbolConfiguration(config) else { return }
         symbol.draw(in: rect)
-    }
-
-    private func drawAction(
-        title: String,
-        trailing: String?,
-        monospacedTrailing: Bool,
-        showsCheckmarkColumn: Bool,
-        highlighted: Bool
-    ) {
-        let font = menuFont()
-        let titleColor = titleColor(highlighted: highlighted)
-        let detailColor = secondaryColor(highlighted: highlighted)
-        var titleX = MenuMetrics.leadingInset
-
-        if showsCheckmarkColumn {
-            let checkOrigin = NSPoint(
-                x: MenuMetrics.leadingInset,
-                y: (bounds.height - MenuMetrics.checkmarkSymbolSize) / 2
-            )
-            if enclosingMenuItem?.state == .on {
-                drawTemplateSymbol(
-                    "checkmark",
-                    in: NSRect(
-                        origin: checkOrigin,
-                        size: NSSize(
-                            width: MenuMetrics.checkmarkSymbolSize,
-                            height: MenuMetrics.checkmarkSymbolSize
-                        )
-                    ),
-                    pointSize: font.pointSize * 0.85,
-                    color: titleColor
-                )
-            }
-            titleX += MenuMetrics.checkmarkColumnWidth
-        }
-
-        let titleY = (bounds.height - font.boundingRectForFont.height) / 2 + 1
-        (title as NSString).draw(
-            at: NSPoint(x: titleX, y: titleY),
-            withAttributes: [.font: font, .foregroundColor: titleColor]
-        )
-
-        if let trailing {
-            let trailingFont = monospacedTrailing
-                ? NSFont.monospacedDigitSystemFont(ofSize: font.pointSize, weight: .regular)
-                : font
-            let size = (trailing as NSString).size(withAttributes: [.font: trailingFont])
-            let point = NSPoint(
-                x: bounds.maxX - MenuMetrics.trailingInset - size.width,
-                y: (bounds.height - size.height) / 2
-            )
-            (trailing as NSString).draw(
-                at: point,
-                withAttributes: [.font: trailingFont, .foregroundColor: detailColor]
-            )
-        }
     }
 
     private func drawLocation(
@@ -226,16 +151,6 @@ final class MenuRowView: NSView {
         )
     }
 
-    private func drawGear(highlighted: Bool) {
-        let color = secondaryColor(highlighted: highlighted)
-        let rect = NSRect(
-            x: bounds.maxX - MenuMetrics.trailingInset - MenuMetrics.checkmarkSymbolSize,
-            y: (bounds.height - MenuMetrics.checkmarkSymbolSize) / 2,
-            width: MenuMetrics.checkmarkSymbolSize,
-            height: MenuMetrics.checkmarkSymbolSize
-        )
-        drawTemplateSymbol("gearshape", in: rect, pointSize: menuFont().pointSize * 0.9, color: color)
-    }
 }
 
 final class TimeScrubberMenuItemView: NSView {
@@ -409,12 +324,10 @@ enum TZBarMenuLayout {
     static func preferredWidth(
         locations: [SavedLocation],
         at date: Date,
-        appVersion: String,
         scrubberActive: Bool
     ) -> CGFloat {
         max(
             locationRowsWidth(locations: locations, at: date),
-            settingsRowsWidth(appVersion: appVersion),
             scrubberActive ? 260 : 0
         )
     }
@@ -441,51 +354,9 @@ enum TZBarMenuLayout {
         }
         return ceil(width)
     }
-
-    private static func settingsRowsWidth(appVersion: String) -> CGFloat {
-        let font = NSFont.menuFont(ofSize: 0)
-        let chrome = MenuMetrics.leadingInset
-            + MenuMetrics.checkmarkColumnWidth
-            + MenuMetrics.titleToTrailingGap
-            + MenuMetrics.trailingInset
-        var width: CGFloat = 200
-        let rows: [(String, String?)] = [
-            ("Add…", nil),
-            ("Phase Icons", nil),
-            ("Time Scrubber", nil),
-            ("Launch at Login", nil),
-            ("Check for Updates…", appVersion),
-            ("Report Bug…", nil),
-            ("Quit", "⌘Q"),
-        ]
-        for (title, trailing) in rows {
-            let titleWidth = (title as NSString).size(withAttributes: [.font: font]).width
-            let trailingWidth = trailing.map {
-                ($0 as NSString).size(withAttributes: [.font: font]).width
-            } ?? 0
-            width = max(width, chrome + titleWidth + trailingWidth)
-        }
-        return ceil(width)
-    }
 }
 
 enum TZBarMenuItemFactory {
-    static func rowItem(
-        title: String,
-        width: CGFloat,
-        content: MenuRowContent,
-        action: Selector?,
-        target: AnyObject?,
-        state: NSControl.StateValue = .off,
-        keyEquivalent: String = ""
-    ) -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: action, keyEquivalent: keyEquivalent)
-        item.target = target
-        item.state = state
-        item.view = MenuRowView(width: width, content: content)
-        return item
-    }
-
     static func locationItem(
         location: SavedLocation,
         width: CGFloat,
