@@ -4,21 +4,30 @@ enum MenuMetrics {
     static let rowHeight: CGFloat = 22
     static let leadingInset: CGFloat = 18
     static let trailingInset: CGFloat = 18
-    static let checkmarkSymbolSize: CGFloat = 13
     static let dayPhaseSymbolSize: CGFloat = 13
     static let timeToDayPhaseGap: CGFloat = 6
 }
 
-enum MenuRowContent {
-    case location(flag: String, name: String, time: String, dayPhase: DayPhase, showsDayPhase: Bool)
-}
-
-/// Drawn menu row. Custom `NSMenuItem.view` does not fire actions automatically — we forward clicks.
 final class MenuRowView: NSView {
-    private var content: MenuRowContent
+    private let flag: String
+    private let name: String
+    private var time: String
+    private var dayPhase: DayPhase
+    private let showsDayPhase: Bool
 
-    init(width: CGFloat, content: MenuRowContent) {
-        self.content = content
+    init(
+        width: CGFloat,
+        flag: String,
+        name: String,
+        time: String,
+        dayPhase: DayPhase,
+        showsDayPhase: Bool
+    ) {
+        self.flag = flag
+        self.name = name
+        self.time = time
+        self.dayPhase = dayPhase
+        self.showsDayPhase = showsDayPhase
         super.init(frame: NSRect(x: 0, y: 0, width: width, height: MenuMetrics.rowHeight))
         autoresizingMask = [.width]
     }
@@ -27,47 +36,15 @@ final class MenuRowView: NSView {
     required init?(coder: NSCoder) { nil }
 
     func updateLocation(time: String, dayPhase: DayPhase) {
-        guard case let .location(flag, name, _, _, showsDayPhase) = content else { return }
-        content = .location(
-            flag: flag,
-            name: name,
-            time: time,
-            dayPhase: dayPhase,
-            showsDayPhase: showsDayPhase
-        )
+        self.time = time
+        self.dayPhase = dayPhase
         needsDisplay = true
-    }
-
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        guard bounds.contains(point) else { return nil }
-        // Rows with a submenu must not steal mouse events — AppKit/Carbon handles hover and click.
-        if enclosingMenuItem?.submenu != nil { return nil }
-        return self
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        guard let item = enclosingMenuItem,
-              let target = item.target,
-              let action = item.action
-        else { return }
-        NSApp.sendAction(action, to: target, from: item)
     }
 
     override func draw(_ dirtyRect: NSRect) {
         let highlighted = enclosingMenuItem?.isHighlighted == true
         applyHighlightBackground(highlighted, in: dirtyRect)
-
-        switch content {
-        case let .location(flag, name, time, dayPhase, showsDayPhase):
-            drawLocation(
-                flag: flag,
-                name: name,
-                time: time,
-                dayPhase: dayPhase,
-                showsDayPhase: showsDayPhase,
-                highlighted: highlighted
-            )
-        }
+        drawLocation(highlighted: highlighted)
     }
 
     private func applyHighlightBackground(_ highlighted: Bool, in dirtyRect: NSRect) {
@@ -100,14 +77,7 @@ final class MenuRowView: NSView {
         symbol.draw(in: rect)
     }
 
-    private func drawLocation(
-        flag: String,
-        name: String,
-        time: String,
-        dayPhase: DayPhase,
-        showsDayPhase: Bool,
-        highlighted: Bool
-    ) {
+    private func drawLocation(highlighted: Bool) {
         let nameFont = menuFont()
         let timeFont = NSFont.monospacedDigitSystemFont(
             ofSize: nameFont.pointSize,
@@ -371,13 +341,11 @@ enum TZBarMenuItemFactory {
         )
         let view = MenuRowView(
             width: width,
-            content: .location(
-                flag: location.emoji,
-                name: location.displayName,
-                time: time,
-                dayPhase: dayPhase,
-                showsDayPhase: showsDayPhase
-            )
+            flag: location.emoji,
+            name: location.displayName,
+            time: time,
+            dayPhase: dayPhase,
+            showsDayPhase: showsDayPhase
         )
         item.view = view
         return (item, view)

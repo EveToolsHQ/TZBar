@@ -334,7 +334,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 try SMAppService.mainApp.unregister()
             }
             sender.state = launchAtLoginEnabled ? .on : .off
-            sender.view?.needsDisplay = true
         } catch {
             let alert = NSAlert()
             alert.messageText = "Could not update Launch at Login"
