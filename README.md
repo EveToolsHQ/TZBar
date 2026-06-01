@@ -55,8 +55,9 @@ Requires **macOS 15** or later.
 ## Build from source
 
 ```bash
-make run      # debug build and launch
-make build    # release TZBar.app bundle
+make run            # Debug build and run
+make build          # Debug build
+make build-release  # Release build
 ```
 
 ## License
