@@ -55,9 +55,16 @@ Requires **macOS 15** or later.
 ## Build from source
 
 ```bash
+brew install swiftformat swiftlint
+```
+
+```bash
 make run            # Debug build and run
 make build          # Debug build
 make build-release  # Release build
+make format         # Auto-format Swift sources
+make format-check   # Verify formatting
+make lint           # Run SwiftLint
 ```
 
 ## License

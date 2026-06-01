@@ -33,7 +33,9 @@ final class MenuRowView: NSView {
     }
 
     @available(*, unavailable)
-    required init?(coder: NSCoder) { nil }
+    required init?(coder _: NSCoder) {
+        nil
+    }
 
     func updateLocation(time: String, dayPhase: DayPhase) {
         self.time = time
@@ -54,7 +56,9 @@ final class MenuRowView: NSView {
         }
     }
 
-    private func menuFont() -> NSFont { NSFont.menuFont(ofSize: 0) }
+    private func menuFont() -> NSFont {
+        NSFont.menuFont(ofSize: 0)
+    }
 
     private func titleColor(highlighted: Bool) -> NSColor {
         highlighted ? .selectedMenuItemTextColor : .labelColor
@@ -120,7 +124,6 @@ final class MenuRowView: NSView {
             withAttributes: [.font: timeFont, .foregroundColor: timeColor]
         )
     }
-
 }
 
 final class TimeScrubberMenuItemView: NSView {
@@ -206,9 +209,13 @@ final class TimeScrubberMenuItemView: NSView {
     }
 
     @available(*, unavailable)
-    required init?(coder: NSCoder) { nil }
+    required init?(coder _: NSCoder) {
+        nil
+    }
 
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func acceptsFirstMouse(for _: NSEvent?) -> Bool {
+        true
+    }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard bounds.contains(point), scrubbingRect.contains(point) else { return nil }

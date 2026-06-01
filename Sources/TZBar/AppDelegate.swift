@@ -26,7 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var showScrubberOnNextOpen = false
     private var locationMenuEntries: [LocationMenuEntry] = []
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
+    func applicationDidFinishLaunching(_: Notification) {
         menu.delegate = self
         syncStatusBar()
         rebuildMenu()
@@ -72,7 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         rebuildMenu()
     }
 
-    func menuDidClose(_ menu: NSMenu) {
+    func menuDidClose(_: NSMenu) {
         if showScrubberOnNextOpen { return }
         scrubberActive = false
         scrubMinutes = nil
@@ -253,7 +253,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    @objc private func toggleTimeScrubber(_ sender: NSMenuItem) {
+    @objc private func toggleTimeScrubber(_: NSMenuItem) {
         if scrubberActive {
             scrubberActive = false
             scrubMinutes = nil
@@ -290,13 +290,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.terminate(sender)
     }
 
-    @objc private func openUpdatesPage(_ sender: NSMenuItem) {
+    @objc private func openUpdatesPage(_: NSMenuItem) {
         menu.cancelTracking()
         guard let url = URL(string: "https://evetools.app/en/tzbar") else { return }
         NSWorkspace.shared.open(url)
     }
 
-    @objc private func reportBug(_ sender: NSMenuItem) {
+    @objc private func reportBug(_: NSMenuItem) {
         menu.cancelTracking()
         var components = URLComponents()
         components.scheme = "mailto"
@@ -320,7 +320,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSWorkspace.shared.open(url)
     }
 
-    @objc private func toggleDayPhaseIcons(_ sender: NSMenuItem) {
+    @objc private func toggleDayPhaseIcons(_: NSMenuItem) {
         AppPreferences.showDayPhaseIcons.toggle()
         rebuildMenu()
     }

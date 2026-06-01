@@ -38,9 +38,9 @@ struct SavedLocation: Equatable {
         self.displayName = displayName
         self.timeZoneIdentifier = timeZoneIdentifier
         self.emoji = emoji
-        self.locationName = plist["locationName"] as? String
-        self.countryCode = plist["countryCode"] as? String
-        self.mapItemID = plist["mapItemID"] as? String
+        locationName = plist["locationName"] as? String
+        countryCode = plist["countryCode"] as? String
+        mapItemID = plist["mapItemID"] as? String
     }
 
     var plistDictionary: [String: Any] {
@@ -185,7 +185,7 @@ final class LocationStore {
 
 func flagEmoji(for countryCode: String?) -> String {
     guard let countryCode, countryCode.count == 2 else { return "🌐" }
-    let base: UInt32 = 127397
+    let base: UInt32 = 127_397
     return countryCode.uppercased().unicodeScalars.compactMap { scalar in
         UnicodeScalar(base + scalar.value).map(String.init)
     }.joined()

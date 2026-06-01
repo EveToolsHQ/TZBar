@@ -1,6 +1,6 @@
 import AppKit
 
-// NSApplication.delegate is weak; keep a strong reference for app lifetime.
+/// NSApplication.delegate is weak; keep a strong reference for app lifetime.
 private let appDelegate = AppDelegate()
 
 Main.main()

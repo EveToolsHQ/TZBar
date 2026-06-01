@@ -43,7 +43,7 @@ final class EditLocationPopoverController: NSObject, NSPopoverDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    func popoverDidClose(_ notification: Notification) {
+    func popoverDidClose(_: Notification) {
         viewController.prepareForDisplay()
     }
 }
@@ -74,7 +74,7 @@ final class EditLocationViewController: NSViewController, NSTextFieldDelegate {
     }
 
     @available(*, unavailable)
-    required init?(coder: NSCoder) {
+    required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
@@ -187,7 +187,7 @@ final class EditLocationViewController: NSViewController, NSTextFieldDelegate {
         applyEmojiFromInput()
     }
 
-    func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+    func control(_ control: NSControl, textView _: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         guard control === nameField,
               commandSelector == #selector(NSResponder.insertNewline(_:))
         else { return false }

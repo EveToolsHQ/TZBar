@@ -1,0 +1,5 @@
+# Aligned with .swiftlint.yml — SwiftFormat owns formatting; SwiftLint owns lint rules.
+--swiftversion 5
+--indent 4
+--maxwidth 120
+--trailing-commas collections-only

@@ -46,7 +46,7 @@ final class AddLocationPopoverController: NSObject, NSPopoverDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    func popoverDidClose(_ notification: Notification) {
+    func popoverDidClose(_: Notification) {
         viewController.prepareForDisplay()
     }
 }
@@ -82,7 +82,7 @@ final class AddLocationViewController: NSViewController {
     }
 
     @available(*, unavailable)
-    required init?(coder: NSCoder) {
+    required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
@@ -106,7 +106,7 @@ final class AddLocationViewController: NSViewController {
 
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("place"))
         column.minWidth = Layout.width - Layout.padding * 2
-        column.maxWidth = 10_000
+        column.maxWidth = 10000
         column.resizingMask = .autoresizingMask
 
         tableView.addTableColumn(column)
@@ -264,12 +264,12 @@ final class AddLocationViewController: NSViewController {
 }
 
 extension AddLocationViewController: NSSearchFieldDelegate {
-    func controlTextDidChange(_ obj: Notification) {
+    func controlTextDidChange(_: Notification) {
         let query = searchField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         searchController.search(query: query)
     }
 
-    func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+    func control(_: NSControl, textView _: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         switch commandSelector {
         case #selector(NSResponder.moveDown(_:)):
             moveSelection(by: 1)
@@ -287,11 +287,11 @@ extension AddLocationViewController: NSSearchFieldDelegate {
 }
 
 extension AddLocationViewController: NSTableViewDataSource, NSTableViewDelegate {
-    func numberOfRows(in tableView: NSTableView) -> Int {
+    func numberOfRows(in _: NSTableView) -> Int {
         searchController.completions.count
     }
 
-    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+    func tableView(_ tableView: NSTableView, viewFor _: NSTableColumn?, row: Int) -> NSView? {
         let identifier = NSUserInterfaceItemIdentifier("PlaceResultCell")
         let cell = tableView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView ?? {
             let view = NSTableCellView()
@@ -315,7 +315,7 @@ extension AddLocationViewController: NSTableViewDataSource, NSTableViewDelegate 
         return cell
     }
 
-    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+    func tableView(_: NSTableView, rowViewForRow _: Int) -> NSTableRowView? {
         EmphasizedTableRowView()
     }
 }
@@ -394,7 +394,7 @@ private final class PlaceSearchController: NSObject, MKLocalSearchCompleterDeleg
         onResultsChanged?()
     }
 
-    func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
+    func completer(_: MKLocalSearchCompleter, didFailWithError error: Error) {
         onError?(error.localizedDescription)
     }
 

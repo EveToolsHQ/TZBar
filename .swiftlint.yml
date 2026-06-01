@@ -1,0 +1,45 @@
+# SwiftFormat owns formatting. SwiftLint catches logic, complexity, and policy.
+# Run: make format && make lint
+
+included:
+  - Sources
+excluded:
+  - .build
+
+# Rules SwiftFormat already enforces — disable to avoid fighting format on save / make format.
+disabled_rules:
+  - colon
+  - comma
+  - opening_brace
+  - statement_position
+  - closure_end_indentation
+  - operator_usage_whitespace
+  - trailing_whitespace
+  - trailing_comma
+  - trailing_newline
+  - indentation_width
+
+line_length:
+  warning: 120
+  ignores_comments: true
+  ignores_urls: true
+
+function_body_length:
+  warning: 100
+  error: 120
+
+file_length:
+  warning: 550
+  error: 600
+
+type_body_length:
+  warning: 450
+  error: 550
+
+identifier_name:
+  min_length:
+    warning: 2
+    error: 1
+  max_length:
+    warning: 40
+    error: 50

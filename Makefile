@@ -12,6 +12,15 @@ build: $(APP_RESOURCES)
 run: build
 	$(APP)/Contents/MacOS/TZBar
 
+format:
+	swiftformat Sources
+
+format-check:
+	swiftformat --lint Sources
+
+lint:
+	swiftlint lint Sources
+
 build-release: $(APP_RESOURCES)
 	swift build -c release --arch arm64 --arch x86_64
 	mkdir -p $(APP)/Contents/MacOS
