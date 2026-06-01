@@ -59,7 +59,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    func menuWillOpen(_ menu: NSMenu) {
+    func menuWillOpen(_ openingMenu: NSMenu) {
+        guard openingMenu === menu else { return }
         if !scrubberActive {
             scrubMinutes = nil
             locationMenuEntries.removeAll()

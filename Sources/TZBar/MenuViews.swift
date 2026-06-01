@@ -48,16 +48,18 @@ final class MenuRowView: NSView {
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
-        bounds.contains(point) ? self : nil
+        guard bounds.contains(point) else { return nil }
+        // Rows with a submenu must not steal mouse events — AppKit/Carbon handles hover and click.
+        if enclosingMenuItem?.submenu != nil { return nil }
+        return self
     }
 
     override func mouseDown(with event: NSEvent) {
-        guard let item = enclosingMenuItem else { return }
-        if let target = item.target, let action = item.action {
-            NSApp.sendAction(action, to: target, from: item)
-            return
-        }
-        super.mouseDown(with: event)
+        guard let item = enclosingMenuItem,
+              let target = item.target,
+              let action = item.action
+        else { return }
+        NSApp.sendAction(action, to: target, from: item)
     }
 
     override func draw(_ dirtyRect: NSRect) {
