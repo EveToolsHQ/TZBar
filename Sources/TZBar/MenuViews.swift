@@ -423,7 +423,7 @@ enum TZBarMenuLayout {
         var width: CGFloat = 200
 
         for location in locations {
-            let name = "\(location.emojiText)  \(location.labelText)"
+            let name = "\(location.emoji)  \(location.displayName)"
             let time = formattedTime(in: location.timeZoneIdentifier, at: date)
             let nameWidth = (name as NSString).size(withAttributes: [.font: nameFont]).width
             let timeWidth = (time as NSString).size(withAttributes: [.font: timeFont]).width
@@ -492,15 +492,15 @@ enum TZBarMenuItemFactory {
         showsDayPhase: Bool
     ) -> (NSMenuItem, MenuRowView) {
         let item = NSMenuItem(
-            title: "\(location.emojiText)  \(location.labelText)",
+            title: "\(location.emoji)  \(location.displayName)",
             action: nil,
             keyEquivalent: ""
         )
         let view = MenuRowView(
             width: width,
             content: .location(
-                flag: location.emojiText,
-                name: location.labelText,
+                flag: location.emoji,
+                name: location.displayName,
                 time: time,
                 dayPhase: dayPhase,
                 showsDayPhase: showsDayPhase

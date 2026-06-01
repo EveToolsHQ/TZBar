@@ -380,7 +380,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var menuAnchorButton: NSStatusBarButton? {
         if let button = globeStatusItem?.button { return button }
         for location in LocationStore.shared.pinnedLocations() {
-            if let button = pinnedStatusItems[location.pinKey]?.button {
+            if let button = pinnedStatusItems[location.id.uuidString]?.button {
                 return button
             }
         }
@@ -397,14 +397,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             ensureGlobeStatusItem()
         } else {
             removeGlobeStatusItem()
-            let activeKeys = Set(pinned.map(\.pinKey))
+            let activeKeys = Set(pinned.map(\.id.uuidString))
             for key in pinnedStatusItems.keys where !activeKeys.contains(key) {
                 if let item = pinnedStatusItems.removeValue(forKey: key) {
                     NSStatusBar.system.removeStatusItem(item)
                 }
             }
             for location in pinned {
-                let key = location.pinKey
+                let key = location.id.uuidString
                 let item = pinnedStatusItems[key] ?? makePinnedStatusItem()
                 pinnedStatusItems[key] = item
                 applyPinnedAppearance(to: item, location: location, at: now)
@@ -436,7 +436,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func updatePinnedStatusItemTitles() {
         let now = Date()
         for location in LocationStore.shared.pinnedLocations() {
-            guard let item = pinnedStatusItems[location.pinKey] else { continue }
+            guard let item = pinnedStatusItems[location.id.uuidString] else { continue }
             applyPinnedAppearance(to: item, location: location, at: now)
         }
     }
@@ -449,9 +449,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func applyPinnedAppearance(to item: NSStatusItem, location: SavedLocation, at date: Date) {
         guard let button = item.button else { return }
-        let flag = location.emojiText
+        let flag = location.emoji
         let time = formattedTime(in: location.timeZoneIdentifier, at: date)
-        let name = location.labelText
+        let name = location.displayName
         button.image = nil
         button.title = "\(flag) \(time)"
         button.font = NSFont.monospacedDigitSystemFont(

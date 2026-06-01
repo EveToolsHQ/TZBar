@@ -167,10 +167,10 @@ final class EditLocationViewController: NSViewController, NSTextFieldDelegate {
 
     func prepareForDisplay() {
         loadViewIfNeeded()
-        selectedEmoji = location.emojiText
+        selectedEmoji = location.emoji
         emojiButton.title = selectedEmoji
         hiddenEmojiInput.stringValue = ""
-        nameField.stringValue = location.labelText
+        nameField.stringValue = location.displayName
     }
 
     @objc private func showEmojiPicker() {
@@ -204,17 +204,17 @@ final class EditLocationViewController: NSViewController, NSTextFieldDelegate {
         emojiButton.title = emoji
         hiddenEmojiInput.stringValue = ""
 
-        let defaultEmoji = flagEmoji(for: location.countryCode)
-        let custom: String? = emoji == defaultEmoji ? nil : emoji
-        LocationStore.shared.setCustomEmoji(custom, for: location)
+        LocationStore.shared.setEmoji(emoji, for: location)
         onEmojiChanged?()
     }
 
     private func commitName() {
         let nameInput = nameField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        let defaultName = shortDisplayName(location.displayName)
-        let name: String? = nameInput.isEmpty || nameInput == defaultName ? nil : nameInput
-        LocationStore.shared.setCustomName(name, for: location)
+        guard !nameInput.isEmpty else {
+            onFinished?()
+            return
+        }
+        LocationStore.shared.setDisplayName(nameInput, for: location)
         onFinished?()
     }
 }

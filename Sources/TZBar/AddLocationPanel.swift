@@ -371,16 +371,21 @@ private final class PlaceSearchController: NSObject, MKLocalSearchCompleterDeleg
         let request = MKLocalSearch.Request(completion: completion)
         request.addressFilter = Self.addressFilter
         let response = try await MKLocalSearch(request: request).start()
-        let displayName = Self.displayLabel(for: completion)
         guard let item = response.mapItems.first,
               let timeZone = item.timeZone
         else {
             throw PlaceSearchError.unresolvedTimeZone
         }
+        let locationName = Self.displayLabel(for: completion)
+        let displayName = shortDisplayName(locationName)
+        let countryCode = countryCode(from: item)
         return SavedLocation(
             displayName: displayName,
             timeZoneIdentifier: timeZone.identifier,
-            countryCode: countryCode(from: item)
+            emoji: flagEmoji(for: countryCode),
+            locationName: locationName,
+            countryCode: countryCode,
+            mapItemID: item.identifier?.rawValue
         )
     }
 

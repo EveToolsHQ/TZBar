@@ -1,26 +1,65 @@
 import Foundation
 
-struct SavedLocation: Codable, Equatable {
+struct SavedLocation: Equatable {
+    var id: UUID
     var displayName: String
     var timeZoneIdentifier: String
+    var emoji: String
+    var locationName: String?
     var countryCode: String?
-    var customEmoji: String?
-    var customName: String?
+    var mapItemID: String?
 
-    var pinKey: String {
-        "\(timeZoneIdentifier)|\(displayName)"
+    init(
+        id: UUID = UUID(),
+        displayName: String,
+        timeZoneIdentifier: String,
+        emoji: String,
+        locationName: String? = nil,
+        countryCode: String? = nil,
+        mapItemID: String? = nil
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.timeZoneIdentifier = timeZoneIdentifier
+        self.emoji = emoji
+        self.locationName = locationName
+        self.countryCode = countryCode
+        self.mapItemID = mapItemID
     }
 
-    var labelText: String {
-        let trimmed = customName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !trimmed.isEmpty { return trimmed }
-        return shortDisplayName(displayName)
+    init?(plist: [String: Any]) {
+        guard let idString = plist["id"] as? String,
+              let id = UUID(uuidString: idString),
+              let displayName = plist["displayName"] as? String,
+              let timeZoneIdentifier = plist["timeZoneIdentifier"] as? String,
+              let emoji = plist["emoji"] as? String
+        else { return nil }
+        self.id = id
+        self.displayName = displayName
+        self.timeZoneIdentifier = timeZoneIdentifier
+        self.emoji = emoji
+        self.locationName = plist["locationName"] as? String
+        self.countryCode = plist["countryCode"] as? String
+        self.mapItemID = plist["mapItemID"] as? String
     }
 
-    var emojiText: String {
-        let trimmed = customEmoji?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !trimmed.isEmpty { return trimmed }
-        return flagEmoji(for: countryCode)
+    var plistDictionary: [String: Any] {
+        var dict: [String: Any] = [
+            "id": id.uuidString,
+            "displayName": displayName,
+            "timeZoneIdentifier": timeZoneIdentifier,
+            "emoji": emoji,
+        ]
+        if let locationName {
+            dict["locationName"] = locationName
+        }
+        if let countryCode {
+            dict["countryCode"] = countryCode
+        }
+        if let mapItemID {
+            dict["mapItemID"] = mapItemID
+        }
+        return dict
     }
 }
 
@@ -44,57 +83,55 @@ final class LocationStore {
     static let shared = LocationStore()
 
     private let defaultsKey = "savedLocations"
-    private let pinnedKeysDefaultsKey = "pinnedLocationKeys"
+    private let pinnedIDsDefaultsKey = "pinnedLocationIDs"
     private(set) var locations: [SavedLocation] = []
-    private var pinnedKeys: Set<String> = []
+    private var pinnedIDs: Set<UUID> = []
 
     private init() {
         load()
     }
 
     func add(_ location: SavedLocation) {
-        guard !locations.contains(where: { $0.timeZoneIdentifier == location.timeZoneIdentifier && $0.displayName == location.displayName }) else {
-            return
-        }
         locations.append(location)
         save()
     }
 
     func remove(_ location: SavedLocation) {
         let before = locations.count
-        locations.removeAll { $0 == location }
+        locations.removeAll { $0.id == location.id }
         guard locations.count != before else { return }
-        pinnedKeys.remove(location.pinKey)
+        pinnedIDs.remove(location.id)
+        save()
+        savePinnedIDs()
+    }
+
+    func setEmoji(_ emoji: String, for location: SavedLocation) {
+        guard let index = index(of: location) else { return }
+        locations[index].emoji = emoji
         save()
     }
 
-    func setCustomEmoji(_ emoji: String?, for location: SavedLocation) {
-        guard let index = locations.firstIndex(where: { $0.pinKey == location.pinKey }) else { return }
-        locations[index].customEmoji = emoji
-        save()
-    }
-
-    func setCustomName(_ name: String?, for location: SavedLocation) {
-        guard let index = locations.firstIndex(where: { $0.pinKey == location.pinKey }) else { return }
-        locations[index].customName = name
+    func setDisplayName(_ name: String, for location: SavedLocation) {
+        guard let index = index(of: location) else { return }
+        locations[index].displayName = name
         save()
     }
 
     func isPinned(_ location: SavedLocation) -> Bool {
-        pinnedKeys.contains(location.pinKey)
+        pinnedIDs.contains(location.id)
     }
 
     func setPinned(_ location: SavedLocation, pinned: Bool) {
         if pinned {
-            pinnedKeys.insert(location.pinKey)
+            pinnedIDs.insert(location.id)
         } else {
-            pinnedKeys.remove(location.pinKey)
+            pinnedIDs.remove(location.id)
         }
-        savePinnedKeys()
+        savePinnedIDs()
     }
 
     func pinnedLocations() -> [SavedLocation] {
-        locations.filter { pinnedKeys.contains($0.pinKey) }
+        locations.filter { pinnedIDs.contains($0.id) }
     }
 
     func sortedByOffset() -> [SavedLocation] {
@@ -103,46 +140,46 @@ final class LocationStore {
             let left = TimeZone(identifier: lhs.timeZoneIdentifier)?.secondsFromGMT(for: now) ?? 0
             let right = TimeZone(identifier: rhs.timeZoneIdentifier)?.secondsFromGMT(for: now) ?? 0
             if left != right { return left < right }
-            return lhs.labelText.localizedCaseInsensitiveCompare(rhs.labelText) == .orderedAscending
+            return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
         }
+    }
+
+    private func index(of location: SavedLocation) -> Int? {
+        locations.firstIndex { $0.id == location.id }
     }
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: defaultsKey),
-              let decoded = try? JSONDecoder().decode([SavedLocation].self, from: data)
-        else {
+        if let array = UserDefaults.standard.array(forKey: defaultsKey) as? [[String: Any]] {
+            locations = array.compactMap(SavedLocation.init(plist:))
+        } else {
             locations = []
-            loadPinnedKeys()
-            return
         }
-        locations = decoded
-        loadPinnedKeys()
+        loadPinnedIDs()
     }
 
     private func save() {
-        guard let data = try? JSONEncoder().encode(locations) else { return }
-        UserDefaults.standard.set(data, forKey: defaultsKey)
+        UserDefaults.standard.set(locations.map(\.plistDictionary), forKey: defaultsKey)
     }
 
-    private func loadPinnedKeys() {
-        guard let keys = UserDefaults.standard.array(forKey: pinnedKeysDefaultsKey) as? [String] else {
-            pinnedKeys = []
-            return
+    private func loadPinnedIDs() {
+        if let ids = UserDefaults.standard.array(forKey: pinnedIDsDefaultsKey) as? [String] {
+            pinnedIDs = Set(ids.compactMap(UUID.init(uuidString:)))
+        } else {
+            pinnedIDs = []
         }
-        pinnedKeys = Set(keys)
         pruneOrphanedPins()
     }
 
-    private func savePinnedKeys() {
-        UserDefaults.standard.set(Array(pinnedKeys), forKey: pinnedKeysDefaultsKey)
+    private func savePinnedIDs() {
+        UserDefaults.standard.set(pinnedIDs.map(\.uuidString), forKey: pinnedIDsDefaultsKey)
     }
 
     private func pruneOrphanedPins() {
-        let valid = Set(locations.map(\.pinKey))
-        let pruned = pinnedKeys.intersection(valid)
-        guard pruned != pinnedKeys else { return }
-        pinnedKeys = pruned
-        savePinnedKeys()
+        let valid = Set(locations.map(\.id))
+        let pruned = pinnedIDs.intersection(valid)
+        guard pruned != pinnedIDs else { return }
+        pinnedIDs = pruned
+        savePinnedIDs()
     }
 }
 
