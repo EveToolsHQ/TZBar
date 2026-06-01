@@ -2,5 +2,5 @@
 .icons/
 node_modules/
 TZBar.app/
-TZBar.dmg
+TZBar-*.dmg
 .DS_Store
