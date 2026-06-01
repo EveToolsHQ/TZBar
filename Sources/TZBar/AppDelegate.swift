@@ -308,7 +308,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func reportBug(_ sender: NSMenuItem) {
         menu.cancelTracking()
-        guard let url = URL(string: "https://github.com/EveToolsHQ/TZBar/issues") else { return }
+        var components = URLComponents()
+        components.scheme = "mailto"
+        components.path = "hey@evetools.app"
+        let os = ProcessInfo.processInfo.operatingSystemVersionString
+        components.queryItems = [
+            URLQueryItem(name: "subject", value: "TZBar bug report"),
+            URLQueryItem(
+                name: "body",
+                value: """
+                TZBar version: \(appVersionString)
+                macOS: \(os)
+
+                Describe the issue:
+
+
+                """
+            ),
+        ]
+        guard let url = components.url else { return }
         NSWorkspace.shared.open(url)
     }
 
