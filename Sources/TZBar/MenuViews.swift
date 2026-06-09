@@ -127,6 +127,24 @@ final class MenuRowView: NSView {
 }
 
 final class TimeScrubberMenuItemView: NSView {
+    static let stepMinutes = 15
+    private static let stepCount = (24 * 60) / stepMinutes
+    private static let maxStepIndex = Double(stepCount - 1)
+
+    static func snappedMinutes(_ minutes: Int) -> Int {
+        let maxMinutes = (stepCount - 1) * stepMinutes
+        let snapped = ((minutes + stepMinutes / 2) / stepMinutes) * stepMinutes
+        return min(max(0, snapped), maxMinutes)
+    }
+
+    private static func stepIndex(forMinutes minutes: Int) -> Int {
+        snappedMinutes(minutes) / stepMinutes
+    }
+
+    private static func minutes(forStepIndex stepIndex: Int) -> Int {
+        stepIndex * stepMinutes
+    }
+
     private static let sliderToTimeGap: CGFloat = 8
 
     private static var timeLabelWidth: CGFloat {
@@ -137,7 +155,7 @@ final class TimeScrubberMenuItemView: NSView {
         return ceil(("88:88" as NSString).size(withAttributes: [.font: font]).width)
     }
 
-    private let slider = NSSlider(value: 0, minValue: 0, maxValue: 1439, target: nil, action: nil)
+    private let slider = NSSlider(value: 0, minValue: 0, maxValue: maxStepIndex, target: nil, action: nil)
     private let timeLabel = NSTextField(labelWithString: "")
     private let phaseImageView = NSImageView()
     private let onScrub: (Int) -> Void
@@ -148,7 +166,6 @@ final class TimeScrubberMenuItemView: NSView {
         width: CGFloat,
         minutes: Int,
         referenceTimeZone: TimeZone,
-        dayPhase: DayPhase,
         showsDayPhase: Bool,
         onScrub: @escaping (Int) -> Void
     ) {
@@ -173,7 +190,8 @@ final class TimeScrubberMenuItemView: NSView {
 
         slider.isContinuous = true
         slider.controlSize = .small
-        slider.doubleValue = Double(minutes)
+        let snapped = Self.snappedMinutes(minutes)
+        slider.doubleValue = Double(Self.stepIndex(forMinutes: snapped))
         slider.translatesAutoresizingMaskIntoConstraints = false
         slider.target = self
         slider.action = #selector(sliderChanged)
@@ -205,7 +223,9 @@ final class TimeScrubberMenuItemView: NSView {
             phaseImageView.heightAnchor.constraint(equalToConstant: phaseWidth),
         ])
 
-        updateDisplay(minutes: minutes, dayPhase: dayPhase)
+        let snappedDate = date(atMinutesSinceMidnight: snapped, in: referenceTimeZone)
+        let snappedPhase = dayPhase(in: referenceTimeZone.identifier, at: snappedDate)
+        updateDisplay(minutes: snapped, dayPhase: snappedPhase)
     }
 
     @available(*, unavailable)
@@ -247,7 +267,9 @@ final class TimeScrubberMenuItemView: NSView {
     }
 
     @objc private func sliderChanged() {
-        let minutes = Int(slider.doubleValue.rounded())
+        let stepIndex = Int(slider.doubleValue.rounded())
+        slider.doubleValue = Double(stepIndex)
+        let minutes = Self.minutes(forStepIndex: stepIndex)
         let date = date(atMinutesSinceMidnight: minutes, in: referenceTimeZone)
         let phase = dayPhase(in: referenceTimeZone.identifier, at: date)
         updateDisplay(minutes: minutes, dayPhase: phase)
@@ -292,7 +314,8 @@ final class TimeScrubberMenuItemView: NSView {
         guard rect.width > 0 else { return }
         let fraction = (point.x - rect.minX) / rect.width
         let clamped = max(0, min(1, fraction))
-        slider.doubleValue = slider.minValue + clamped * (slider.maxValue - slider.minValue)
+        let stepIndex = Int((clamped * Self.maxStepIndex).rounded())
+        slider.doubleValue = Double(stepIndex)
         sliderChanged()
     }
 }

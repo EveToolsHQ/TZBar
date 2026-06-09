@@ -149,15 +149,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         if scrubberActive {
             let scrubberItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-            let minutes = scrubMinutes ?? minutesSinceMidnight(in: TimeZone.current)
+            let minutes = TimeScrubberMenuItemView.snappedMinutes(
+                scrubMinutes ?? minutesSinceMidnight(in: TimeZone.current)
+            )
             let referenceTimeZone = TimeZone.current
-            let scrubDate = date(atMinutesSinceMidnight: minutes, in: referenceTimeZone)
             let showsDayPhase = AppPreferences.showDayPhaseIcons
             scrubberItem.view = TimeScrubberMenuItemView(
                 width: menuWidth,
                 minutes: minutes,
                 referenceTimeZone: referenceTimeZone,
-                dayPhase: dayPhase(in: referenceTimeZone.identifier, at: scrubDate),
                 showsDayPhase: showsDayPhase,
                 onScrub: { [weak self] newMinutes in
                     self?.scrubMinutes = newMinutes
@@ -258,7 +258,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             scrubberActive = false
             scrubMinutes = nil
         } else {
-            scrubMinutes = minutesSinceMidnight(in: TimeZone.current)
+            scrubMinutes = TimeScrubberMenuItemView.snappedMinutes(
+                minutesSinceMidnight(in: TimeZone.current)
+            )
             showScrubberOnNextOpen = true
         }
         // Settings submenu can't refresh main menu; close all menus then reopen.
